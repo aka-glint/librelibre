@@ -1,0 +1,13 @@
+App(
+    appid="libre_capture",
+    name="LibreLibre",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="libre_capture_app",
+    stack_size=4 * 1024,
+    fap_category="NFC",
+    fap_version="0.3",
+    fap_icon="librelibre_icon.png",
+    fap_description="Experimental unsmoothed current-trend estimate mmol/L.",
+    fap_author="Connor research project",
+    sources=["app.c", "protocol.c", "capture.c", "transaction.c", "integrity.c", "factory.c", "vendor_chain.c", "vendor_tables.c", "lifecycle.c"],
+)

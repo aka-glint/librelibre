@@ -1,0 +1,15 @@
+{
+  "upstream": "https://github.com/gui-dos/DiaBLE",
+  "revision": "e6a909c88faeada49f461d30834174cd95db4042",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2026 Guido Soranzio",
+  "source_verification": "All four local reference files compared byte-for-byte against pinned raw URLs successfully during this task.",
+  "files": [
+    {"path": "reference/Libre2.swift", "url": "https://raw.githubusercontent.com/gui-dos/DiaBLE/e6a909c88faeada49f461d30834174cd95db4042/DiaBLE/Libre2.swift", "sha256": "2c91a05e2bd4770c2a9154b44ca47fd1668c517ef7423a90d9d029749c408386", "used_lines": "56-105,126-171: EU2-only decrypt and UInt16 wrapping"},
+    {"path": "reference/Libre.swift", "url": "https://raw.githubusercontent.com/gui-dos/DiaBLE/e6a909c88faeada49f461d30834174cd95db4042/DiaBLE/Libre.swift", "sha256": "e35e2d9160e95862e71ea20accd6715053d823a7b610d4f842b4900e2e5628ec", "used_lines": "8-29,46-57: family classification;247-261: section CRC ranges"},
+    {"path": "reference/Extensions.swift", "url": "https://raw.githubusercontent.com/gui-dos/DiaBLE/e6a909c88faeada49f461d30834174cd95db4042/DiaBLE/Extensions.swift", "sha256": "a7faac73b62a069beaf5ceda4fe70ed2e42d8bfcc035c685d869b65e484f14b3", "used_lines": "36-43: independent bitwise CRC convention;55-68: high/low and little-endian UInt16"},
+    {"path": "reference/LICENSE.md", "url": "https://raw.githubusercontent.com/gui-dos/DiaBLE/e6a909c88faeada49f461d30834174cd95db4042/LICENSE.md", "sha256": "bbcdaaddbefb541f587bee323d0a2e13487113412c6b3dae3b2cabaf905be0c2"}
+  ],
+  "adaptations": "Python stdlib-only offline CLI; stricter historical C5/9D EU/gen1 candidate gate, TI wire UID07E0, strict schema2 conservative transcript, all-three-section integrity requirement, private output and no physiology. C test oracle is separately expressed from the same public algorithm; it is not an independent upstream implementation or Swift execution.",
+  "excluded": "No activation, streaming unlock, BLE, proprietary native library, device access, glucose parsing, physiology, or treatment calculations."
+}

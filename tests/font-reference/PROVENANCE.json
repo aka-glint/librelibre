@@ -1,0 +1,21 @@
+{
+  "base_url": "https://raw.githubusercontent.com/DarkFlippers/unleashed-firmware/2f62b3ab/",
+  "files": {
+    "u8g2_font.c": {
+      "sha256": "29c0df4ff19468dcc3e0ea4ab7c6ff73b941e819ad39816a589d4c0a21443a32",
+      "origin": "https://raw.githubusercontent.com/DarkFlippers/unleashed-firmware/2f62b3ab/lib/u8g2/u8g2_font.c"
+    },
+    "u8x8_8x8.c": {
+      "sha256": "3583e3a40b463332952662b9b0fb1275a20fc628da85f83a51a3e46dd0520afc",
+      "origin": "https://raw.githubusercontent.com/DarkFlippers/unleashed-firmware/2f62b3ab/lib/u8g2/u8x8_8x8.c"
+    },
+    "fonts.c": {
+      "sha256": "c25c13665b373819552658adb2694ab476c197dab9393f6674297cfadbdbeee4",
+      "origin": "extracted u8g2_fonts.c arrays with original notices"
+    },
+    "width.c": {
+      "sha256": "454978ebd416f67c942cb590fb42b98ae50ab7b6c8b961dc25058c6870754dbc",
+      "origin": "locally authored"
+    }
+  }
+}

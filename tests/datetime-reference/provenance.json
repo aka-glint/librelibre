@@ -1,0 +1,14 @@
+{
+  "furi_hal_rtc.c": {
+    "url": "https://raw.githubusercontent.com/DarkFlippers/unleashed-firmware/2f62b3ab/targets/f7/furi_hal/furi_hal_rtc.c",
+    "sha256": "70724795d28726d0ffdf5bb2b1a95999c332638abca5ed80f28f5f72b89c6965"
+  },
+  "datetime.c": {
+    "url": "https://raw.githubusercontent.com/DarkFlippers/unleashed-firmware/2f62b3ab/lib/datetime/datetime.c",
+    "sha256": "02a22f826595c3c8d0abe52a74f7294c326079b1e7232a456700d682a0fd598a"
+  },
+  "datetime.h": {
+    "url": "https://raw.githubusercontent.com/DarkFlippers/unleashed-firmware/2f62b3ab/lib/datetime/datetime.h",
+    "sha256": "b250f9e689fa7c0256adbbb3e6d64da5bb467f0a2433ce2439226bcb9d48d752"
+  }
+}

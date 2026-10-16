@@ -1,0 +1,224 @@
+{
+  "current_build": {
+    "firmware": "Unleashed unlshd-094e",
+    "firmware_commit": "2f62b3ab",
+    "api": "88.19",
+    "target": 7,
+    "sdk_state": {
+      "hw_target": "f7",
+      "mode": "url",
+      "url": "https://unleashedflip.com/fw/unlshd-094/flipper-z-f7-sdk-unlshd-094.zip",
+      "version": "unknown"
+    },
+    "sdk_zip_sha256": "50d78cb269c796dd3f25df68e5704db817783f855a466ea0399eeee4c2ae806f",
+    "api_csv_sha256": "38f9a72303ac131ff23c21662b9f42e33333d98627e8fdbb9e8c53fd5e7a7356",
+    "verified_exports": {
+      "furi_hal_rtc_get_timestamp": [
+        "Function",
+        "+",
+        "furi_hal_rtc_get_timestamp",
+        "uint32_t",
+        ""
+      ],
+      "iso15693_3_poller_send_frame": [
+        "Function",
+        "+",
+        "iso15693_3_poller_send_frame",
+        "Iso15693_3Error",
+        "Iso15693_3Poller*, const BitBuffer*, BitBuffer*, uint32_t"
+      ],
+      "nfc_alloc": [
+        "Function",
+        "+",
+        "nfc_alloc",
+        "Nfc*",
+        ""
+      ],
+      "nfc_free": [
+        "Function",
+        "+",
+        "nfc_free",
+        "void",
+        "Nfc*"
+      ],
+      "nfc_poller_free": [
+        "Function",
+        "+",
+        "nfc_poller_free",
+        "void",
+        "NfcPoller*"
+      ],
+      "nfc_poller_start_ex": [
+        "Function",
+        "+",
+        "nfc_poller_start_ex",
+        "void",
+        "NfcPoller*, NfcGenericCallbackEx, void*"
+      ],
+      "nfc_poller_stop": [
+        "Function",
+        "+",
+        "nfc_poller_stop",
+        "void",
+        "NfcPoller*"
+      ],
+      "storage_file_read": [
+        "Function",
+        "+",
+        "storage_file_read",
+        "size_t",
+        "File*, void*, size_t"
+      ],
+      "storage_file_sync": [
+        "Function",
+        "+",
+        "storage_file_sync",
+        "_Bool",
+        "File*"
+      ],
+      "storage_file_write": [
+        "Function",
+        "+",
+        "storage_file_write",
+        "size_t",
+        "File*, const void*, size_t"
+      ]
+    },
+    "device_access_this_build": false,
+    "firmware_identity_source": "parent prior device_info; this build did not access device",
+    "sources": [
+      {
+        "path": "logs/unleashed-source/nfc.c",
+        "sha256": "0887b36177c8d7094fb4d4ea07fe8f650c94c61bc726d7f7d2cd40550df96434",
+        "firmware_commit": "2f62b3ab"
+      },
+      {
+        "path": "logs/unleashed-source/nfc_poller.c",
+        "sha256": "89552361388d04f761c628ae39a9aa7ad7bc6e82350e62ed2c8af1a650cacf1b",
+        "firmware_commit": "2f62b3ab"
+      },
+      {
+        "path": "logs/unleashed-source/iso15693_3_poller_i.c",
+        "sha256": "5aa1bf9157bf6e0926675cc7bbff8e47c17d1513cd17109df4e75658c321eb2b",
+        "firmware_commit": "2f62b3ab"
+      }
+    ]
+  },
+  "historical_momentum_build": {
+    "firmware_commit": "25a10b1931e3770730b11a937f219febc9fb014d",
+    "sdk_components": {
+      "meta": {
+        "hw_target": "f7",
+        "flavor": "C",
+        "version": "mntm-dev-25a10b19"
+      },
+      "components": {
+        "full.bin": "full.bin",
+        "firmware.elf": "firmware.elf",
+        "update.dir": "f7-update-mntm-dev-25a10b19",
+        "sdk_headers.dir": "sdk_headers",
+        "lib.dir": "lib",
+        "scripts.dir": "scripts"
+      }
+    },
+    "sdk_state": {
+      "hw_target": "f7",
+      "mode": "url",
+      "url": "https://up.momentum-fw.dev/builds/firmware/dev/flipper-z-f7-sdk-mntm-dev-25a10b19.zip",
+      "version": "unknown"
+    },
+    "sdk_zip_sha256": "b0c0a873dbdd8f92c5eb6a31da34c2760af7ef8e014495e7772780a72b1d037d",
+    "api_csv_sha256": "ebcd07356dbcf25545945885b801c3426ee8df5f9f41a1726ceb9d83ee334a64",
+    "verified_exports": {
+      "iso15693_3_poller_send_frame": [
+        "Function",
+        "+",
+        "iso15693_3_poller_send_frame",
+        "Iso15693_3Error",
+        "Iso15693_3Poller*, const BitBuffer*, BitBuffer*, uint32_t"
+      ],
+      "nfc_poller_start_ex": [
+        "Function",
+        "+",
+        "nfc_poller_start_ex",
+        "void",
+        "NfcPoller*, NfcGenericCallbackEx, void*"
+      ],
+      "nfc_poller_stop": [
+        "Function",
+        "+",
+        "nfc_poller_stop",
+        "void",
+        "NfcPoller*"
+      ],
+      "nfc_poller_free": [
+        "Function",
+        "+",
+        "nfc_poller_free",
+        "void",
+        "NfcPoller*"
+      ],
+      "nfc_alloc": [
+        "Function",
+        "+",
+        "nfc_alloc",
+        "Nfc*",
+        ""
+      ],
+      "nfc_free": [
+        "Function",
+        "+",
+        "nfc_free",
+        "void",
+        "Nfc*"
+      ],
+      "storage_file_sync": [
+        "Function",
+        "+",
+        "storage_file_sync",
+        "_Bool",
+        "File*"
+      ],
+      "storage_file_read": [
+        "Function",
+        "+",
+        "storage_file_read",
+        "size_t",
+        "File*, void*, size_t"
+      ],
+      "storage_file_write": [
+        "Function",
+        "+",
+        "storage_file_write",
+        "size_t",
+        "File*, const void*, size_t"
+      ],
+      "furi_hal_rtc_get_timestamp": [
+        "Function",
+        "+",
+        "furi_hal_rtc_get_timestamp",
+        "uint32_t",
+        ""
+      ]
+    },
+    "sources": [
+      {
+        "url": "https://raw.githubusercontent.com/Next-Flip/Momentum-Firmware/25a10b1931e3770730b11a937f219febc9fb014d/lib/nfc/nfc_poller.c",
+        "sha256": "89552361388d04f761c628ae39a9aa7ad7bc6e82350e62ed2c8af1a650cacf1b"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/Next-Flip/Momentum-Firmware/25a10b1931e3770730b11a937f219febc9fb014d/lib/nfc/protocols/iso15693_3/iso15693_3_poller_i.c",
+        "sha256": "5aa1bf9157bf6e0926675cc7bbff8e47c17d1513cd17109df4e75658c321eb2b"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/Next-Flip/Momentum-Firmware/25a10b1931e3770730b11a937f219febc9fb014d/lib/nfc/protocols/iso15693_3/iso15693_3_i.c",
+        "sha256": "9b7e7d0de6ec8bff649b56262ad6498d3af66423e62288b1db3c35469a8ceee9"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/j-kaltes/Juggluco/a983788a17a35f8e76d9da5c125996b648b4f27a/Common/src/main/java/tk/glucodata/AlgNfcV.java",
+        "sha256": "9e954fbca9e050209878bd9108e38bf64e2c6d54e6ccfc01d525356377d261bc"
+      }
+    ],
+    "device_verified_this_session": false
+  }
+}

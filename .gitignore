@@ -1,0 +1,38 @@
+# --- Build toolchains and SDKs (large, re-downloadable) ---
+.ufbt/
+.ufbt-unleashed/
+.ufbt-*/
+.uid-toolchain/
+
+# --- Editor / OS noise ---
+.vscode/
+__pycache__/
+*.pyc
+.DS_Store
+
+# --- Build output ---
+.ufbt-unleashed/build/
+dist/debug/
+
+# --- PRIVATE: real sensor captures (UIDs + FRAM payloads) NEVER commit ---
+captures/
+private-comparisons/
+
+# --- Private / derived data that may embed real captures ---
+glucose-research/evidence/
+offline/results/
+offline/evidence/
+
+# --- Local logs may embed real capture values ---
+logs/
+
+# --- Local scratch ---
+*.tmp
+*~
+
+# --- Artifact source bundles may embed real capture reports ---
+artifacts/**/sources.tar.gz
+artifacts/**/source.tar.gz
+artifacts/**/status-source.tar.gz
+artifacts/**/*.tar.gz
+artifacts/**/logs/*.bin
