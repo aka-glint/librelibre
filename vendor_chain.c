@@ -318,3 +318,92 @@ LcVendorChainStatus lc_vendor_current_trend(const uint8_t plain[344],
     lc_vendor_round(v, mg_dl, mmol_tenths);
     return LcVendorChainOk;
 }
+
+bool lc_vendor_extract_fram_series(const uint8_t plain[344], LcVendorGraphSeries* out) {
+    if(!out) return false;
+    memset(out, 0, sizeof(*out));
+    if(!plain) return false;
+    LcVendorConfig cfg;
+    if(!lc_vendor_config_from_fram(plain, lc_vendor_table_t1(), lc_vendor_table_t2(),
+                                   LC_VENDOR_SLOPE_TABLE, &cfg))
+        return false;
+    uint32_t age = (uint32_t)rd_u16(plain + 316);
+    int trend_idx = (int)plain[26];
+    int hist_idx = (int)plain[27];
+    if(trend_idx < 0 || trend_idx >= 16 || hist_idx < 0 || hist_idx >= 32 || age == 0)
+        return false;
+
+    /* 1. Extract 32 history slots (oldest to newest: i = 31 down to 0) */
+    uint32_t delay = (age > 3U) ? (((age - 3U) % 15U) + 3U) : 3U;
+    for(int i = 31; i >= 0; i--) {
+        int slot = (hist_idx - 1 - i);
+        while(slot < 0) slot += 32;
+        slot %= 32;
+        uint32_t min_off = delay + (uint32_t)i * 15U;
+        if(age <= min_off) continue;
+        uint16_t smin = (uint16_t)(age - min_off);
+        const uint8_t* p = plain + LC_VENDOR_HISTORY_BASE + (uint32_t)slot * 6U;
+        uint64_t w = 0;
+        for(unsigned b = 0; b < 6U; b++) w |= (uint64_t)p[b] << (8U * b);
+        if(w == 0) continue;
+        bool has_err = ((w >> 25) & 1U) != 0;
+        uint16_t qual = (uint16_t)((w >> 14) & 0x7FFU);
+        if(has_err || qual != 0U) continue;
+        LcVendorRecord rec;
+        lc_vendor_decode_record(p, &rec);
+        LcVendorReal v = R(0.0), T = R(0.0);
+        if(lc_vendor_correct_record(&rec, &cfg, &v, &T) != LcVendorChainOk || !isfinite((double)v) || v <= R(0.0) || v > R(9999.0))
+            continue;
+        uint32_t mg = 0, mmol = 0;
+        lc_vendor_round(v, &mg, &mmol);
+        if(mmol == 0 || out->count >= LC_VENDOR_SERIES_MAX) continue;
+        LcVendorGraphPoint* pt = &out->points[out->count++];
+        pt->sensor_minute = smin;
+        pt->mg_dl = (uint16_t)mg;
+        pt->mmol_tenths = (uint16_t)mmol;
+        pt->is_trend = false;
+    }
+
+    /* 2. Extract 16 trend slots (oldest to newest: i = 15 down to 0) */
+    for(int i = 15; i >= 0; i--) {
+        int slot = (trend_idx - 1 - i);
+        while(slot < 0) slot += 16;
+        slot %= 16;
+        if(age < (uint32_t)i) continue;
+        uint16_t smin = (uint16_t)(age - (uint32_t)i);
+        const uint8_t* p = plain + LC_VENDOR_TREND_BASE + (uint32_t)slot * 6U;
+        uint64_t w = 0;
+        for(unsigned b = 0; b < 6U; b++) w |= (uint64_t)p[b] << (8U * b);
+        if(w == 0) continue;
+        bool has_err = ((w >> 25) & 1U) != 0;
+        uint16_t qual = (uint16_t)((w >> 14) & 0x7FFU);
+        if(has_err || qual != 0U) continue;
+        LcVendorRecord rec;
+        lc_vendor_decode_record(p, &rec);
+        LcVendorReal v = R(0.0), T = R(0.0);
+        if(lc_vendor_correct_record(&rec, &cfg, &v, &T) != LcVendorChainOk || !isfinite((double)v) || v <= R(0.0) || v > R(9999.0))
+            continue;
+        uint32_t mg = 0, mmol = 0;
+        lc_vendor_round(v, &mg, &mmol);
+        if(mmol == 0) continue;
+        /* If a history point had the exact same sensor_minute, update it; else append */
+        if(out->count > 0 && out->points[out->count - 1U].sensor_minute >= smin) {
+            for(uint8_t k = 0; k < out->count; k++) {
+                if(out->points[k].sensor_minute == smin) {
+                    out->points[k].mg_dl = (uint16_t)mg;
+                    out->points[k].mmol_tenths = (uint16_t)mmol;
+                    out->points[k].is_trend = true;
+                    break;
+                }
+            }
+            continue;
+        }
+        if(out->count >= LC_VENDOR_SERIES_MAX) continue;
+        LcVendorGraphPoint* pt = &out->points[out->count++];
+        pt->sensor_minute = smin;
+        pt->mg_dl = (uint16_t)mg;
+        pt->mmol_tenths = (uint16_t)mmol;
+        pt->is_trend = true;
+    }
+    return out->count > 0U;
+}

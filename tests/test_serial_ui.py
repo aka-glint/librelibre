@@ -75,6 +75,7 @@ static void canvas_set_font(Canvas* c,Font f) {(void)c;(void)f;}
 static void canvas_draw_str(Canvas* c,int x,int y,const char* text) {
     (void)c;assert((x==0 || (x==98 && y==10)) && y>0 && y<=64 && locked);puts(text);
 }
+static void render_flipper_graph(Canvas* c, const AppState* a, const char* s){(void)c;(void)a;(void)s;}
 static void draw(DRAW puts(PAGE_SEP);
 }
 int main(int argc,char** argv) {

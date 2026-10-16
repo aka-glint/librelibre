@@ -59,6 +59,7 @@ bool lc_patch_parse(const uint8_t* response, size_t len, uint8_t out[6]) {
 }
 bool lc_command_allowed(const uint8_t* cmd, size_t len) {
     if(!cmd) return false;
+    if(len == 12) return cmd[0] == 2 && cmd[1] == 0xa1 && cmd[2] == 0x07 && cmd[3] == 0x1e;
     if(len == 4) return cmd[0] == 2 && cmd[1] == 0x23 &&
         ((cmd[2] < 42 && cmd[2] % 3 == 0 && cmd[3] == 2) || (cmd[2] == 42 && cmd[3] == 0));
     if(len != 3) return false;
@@ -73,5 +74,50 @@ bool lc_read_command(size_t index, uint8_t out[4]) {
 bool lc_read_parse(const uint8_t* response, size_t len, size_t blocks, uint8_t* out) {
     if(!response || !out || (blocks != 1 && blocks != 3) || len != 1+blocks*8 || response[0] != 0) return false;
     for(size_t i=0;i<blocks*8;i++) out[i]=response[i+1];
+    return true;
+}
+
+#include <string.h>
+static uint16_t lc_proto_u16(const uint8_t* p) {
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+static uint16_t lc_proto_op(uint16_t value) {
+    return (uint16_t)((value >> 2) ^ ((value & 1U) ? 0x6860U : 0U) ^ ((value & 2U) ? 0xa0c5U : 0U));
+}
+void lc_integrity_ble_enable_cmd(const uint8_t uid[8], const uint8_t patch[6], uint32_t unlock_code, uint8_t cmd_out[12]) {
+    uint8_t params[4] = {
+        (uint8_t)(unlock_code & 0xffU),
+        (uint8_t)((unlock_code >> 8) & 0xffU),
+        (uint8_t)((unlock_code >> 16) & 0xffU),
+        (uint8_t)((unlock_code >> 24) & 0xffU),
+    };
+    uint16_t secret = (uint16_t)(lc_proto_u16(patch + 4) ^ lc_proto_u16(params));
+    uint16_t w0 = (uint16_t)((uint32_t)lc_proto_u16(uid + 4) + 0x001eU + secret);
+    uint16_t w1 = lc_proto_u16(uid + 2);
+    uint16_t w2 = (uint16_t)((uint32_t)lc_proto_u16(uid) + 2U * 0x001eU);
+    uint16_t w3 = 0x241aU ^ 0x14c6U;
+    uint16_t r0 = lc_proto_op(w0) ^ w3;
+    uint16_t r1 = lc_proto_op(r0) ^ w2;
+    uint16_t r2 = lc_proto_op(r1) ^ w1;
+    uint16_t r3 = lc_proto_op(r2) ^ w0;
+    uint16_t r4 = lc_proto_op(r3);
+    uint16_t r5 = lc_proto_op(r4 ^ r0);
+    uint16_t r6 = lc_proto_op(r5 ^ r1);
+    uint16_t r7 = lc_proto_op(r6 ^ r2);
+    uint16_t k0 = (uint16_t)((r3 ^ r7) ^ 0x4163U);
+    uint16_t k1 = (uint16_t)((r2 ^ r6) ^ 0x4344U);
+    cmd_out[0] = 0x02U;
+    cmd_out[1] = 0xa1U;
+    cmd_out[2] = 0x07U;
+    cmd_out[3] = 0x1eU;
+    memcpy(cmd_out + 4, params, 4U);
+    cmd_out[8]  = (uint8_t)(k0 & 0xffU);
+    cmd_out[9]  = (uint8_t)((k0 >> 8) & 0xffU);
+    cmd_out[10] = (uint8_t)(k1 & 0xffU);
+    cmd_out[11] = (uint8_t)((k1 >> 8) & 0xffU);
+}
+bool lc_integrity_parse_ble_mac(const uint8_t* response, size_t len, uint8_t mac_be_out[6]) {
+    if(!response || !mac_be_out || len != 7U || response[0] != 0U) return false;
+    for(size_t i = 0; i < 6U; i++) mac_be_out[i] = response[6U - i];
     return true;
 }

@@ -133,7 +133,12 @@ size_t lc_capture_json(const LcCapture* c, char* out, size_t capacity) {
         if(!append(out,capacity,&used,"%s{\"command_hex\":\"%s\",\"response_hex\":\"%s\",\"response_length\":%u,\"error\":%u}",
             i?",":"",command,response,(unsigned)e->response_length,e->error)) goto fail;
     }
-    if(!append(out,capacity,&used,"]}\n")) goto fail;
+    if(c->ble_mac_valid) {
+        if(!append(out,capacity,&used,"],\"ble_paired_mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"ble_unlock_code\":42}\n",
+                   c->ble_mac[0],c->ble_mac[1],c->ble_mac[2],c->ble_mac[3],c->ble_mac[4],c->ble_mac[5])) goto fail;
+    } else {
+        if(!append(out,capacity,&used,"]}\n")) goto fail;
+    }
     return used;
 fail:
     out[0]=0;

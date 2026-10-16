@@ -20,3 +20,6 @@ bool lc_hex(const uint8_t* data, size_t len, char* out, size_t capacity);
  * caller's buffer untouched so a partial or fabricated serial is never shown. */
 bool lc_serial_from_uid(const uint8_t uid[8], const uint8_t patch[6], char* out, size_t capacity);
 bool lc_timestamp_valid(uint32_t timestamp);
+
+void lc_integrity_ble_enable_cmd(const uint8_t uid[8], const uint8_t patch[6], uint32_t unlock_code, uint8_t cmd_out[12]);
+bool lc_integrity_parse_ble_mac(const uint8_t* response, size_t len, uint8_t mac_be_out[6]);

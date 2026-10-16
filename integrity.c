@@ -121,3 +121,4 @@ void lc_integrity_prepare(const uint8_t uid[8], uint16_t x, uint16_t y, uint16_t
     words[2] = (uint16_t)((uint32_t)little_word(uid) + 2U * x);
     words[3] = 0x241aU ^ 0x14c6U;
 }
+

@@ -200,3 +200,22 @@ bool lc_vendor_chain_ring(const uint8_t plain[344], uint32_t base, uint32_t coun
  * receives the extracted factory config. Honest caveat: no smoothing layer. */
 bool lc_vendor_estimate(const uint8_t plain[344], uint32_t* mg_dl,
                         uint32_t* mmol_tenths, LcVendorConfig* cfg_out);
+
+#define LC_VENDOR_SERIES_MAX 48u
+
+typedef struct {
+    uint16_t sensor_minute;
+    uint16_t mg_dl;
+    uint16_t mmol_tenths;
+    bool is_trend;
+} LcVendorGraphPoint;
+
+typedef struct {
+    LcVendorGraphPoint points[LC_VENDOR_SERIES_MAX];
+    uint8_t count;
+} LcVendorGraphSeries;
+
+/* Extracts all valid, unflagged historical (32 x 15-min = 8h) and trend (16 x 1-min)
+ * samples from a decoded 344-byte FRAM, calibrates each with lc_vendor_correct_record,
+ * and sorts them ascending by sensor_minute into `out`. */
+bool lc_vendor_extract_fram_series(const uint8_t plain[344], LcVendorGraphSeries* out);

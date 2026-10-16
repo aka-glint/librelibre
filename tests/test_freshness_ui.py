@@ -42,6 +42,7 @@ static void furi_mutex_release(FuriMutex* m){(void)m;assert(locked);locked=false
 static void canvas_clear(Canvas* c){(void)c;assert(locked);}
 static void canvas_set_font(Canvas* c,Font f){(void)c;(void)f;}
 static void canvas_draw_str(Canvas* c,int x,int y,const char* t){(void)c;assert((x==0||(x==98&&y==10))&&y>0&&y<=64&&locked);puts(t);}
+static void render_flipper_graph(Canvas* c, const AppState* a, const char* s){(void)c;(void)a;(void)s;}
 static void draw(DRAW
 }
 int main(int argc,char** argv){

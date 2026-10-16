@@ -27,6 +27,8 @@ typedef struct {
     LcExchange transcript[LC_TRANSCRIPT_MAX];
     size_t transcript_length;
     unsigned inventory_attempts;
+    bool ble_mac_valid;
+    uint8_t ble_mac[6];
 } LcCapture;
 /* Format naive RTC calendar fields; no UTC/offset inference. Needs 20 bytes. */
 bool lc_capture_local_datetime(uint32_t raw, char* out, size_t capacity);
