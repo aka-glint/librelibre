@@ -37,7 +37,6 @@
 extern "C" {
 #endif
 
-
 /* Compile-time precision toggle: 0 = double (vendor-exact), 1 = hardware float. */
 #ifndef LC_VENDOR_USE_FLOAT
 #define LC_VENDOR_USE_FLOAT 0
@@ -120,6 +119,24 @@ LcVendorChainStatus lc_vendor_correct_record(const LcVendorRecord* rec,
                                              const LcVendorConfig* cfg,
                                              LcVendorReal* value_out,
                                              LcVendorReal* temperature_out);
+
+/* Same correction, but the GAIN uses a caller-supplied temperature instead of
+ * the raw per-record one. The vendor's gain consumes a windowed temperature;
+ * pass a value below zero to keep the raw behaviour. The reported
+ * temperature_out is always the raw per-record temperature. */
+LcVendorChainStatus lc_vendor_correct_record_t(const LcVendorRecord* rec,
+                                               const LcVendorConfig* cfg,
+                                               LcVendorReal temperature_override,
+                                               LcVendorReal* value_out,
+                                               LcVendorReal* temperature_out);
+
+/* Windowed temperature series: clipped-window mean over `count` records,
+ * skipping zero entries. Radius 3 for the trend ring, 1 for history. Output
+ * entry i is the temperature the vendor's gain uses for record i; 0 means no
+ * admitted neighbour. Verified instruction-exact at zero residual. */
+void lc_vendor_smooth_temperatures(const LcVendorRecord* records, size_t count,
+                                   const LcVendorConfig* cfg, int radius,
+                                   LcVendorReal* out);
 
 /* Build the corrected 16-byte tuple array from a record array (order preserved). */
 void lc_vendor_build_tuples(const LcVendorRecord* records, size_t count,
@@ -206,7 +223,6 @@ bool lc_vendor_chain_ring(const uint8_t plain[344], uint32_t base, uint32_t coun
 bool lc_vendor_estimate(const uint8_t plain[344], uint32_t* mg_dl,
                         uint32_t* mmol_tenths, LcVendorConfig* cfg_out);
 
-
 #define LC_VENDOR_SERIES_MAX 48u
 
 typedef struct {
@@ -222,9 +238,28 @@ typedef struct {
 } LcVendorGraphSeries;
 
 /* Extracts all valid, unflagged historical (32 x 15-min = 8h) and trend (16 x 1-min)
- * samples from a decoded 344-byte FRAM, calibrates each with lc_vendor_correct_record,
- * and sorts them ascending by sensor_minute into `out`. */
+ * samples from a decoded 344-byte FRAM, calibrates each with the native runtime
+ * pipeline, and sorts them ascending by sensor_minute into `out`. */
 bool lc_vendor_extract_fram_series(const uint8_t plain[344], LcVendorGraphSeries* out);
+
+/* Calibrates a 46-byte Libre 2 direct BLE stream packet (7 trend samples at lags
+ * {0, 2, 4, 6, 7, 12, 15} and 3 history samples at lags {0, 15, 30}) using the
+ * recovered native runtime factory coefficients (0x8b26f), windowed temperature
+ * smoothing (0x85534), 3-horizon rate projections (0x7d8b2), sensor-age drift
+ * (0x81fc0), and low-glucose curve + -4.0 offset (0x765ec / 0x7717a). */
+LcVendorChainStatus lc_vendor_calibrate_ble_packet(
+    const LcVendorConfig* cfg,
+    uint16_t wear_minutes,
+    const uint16_t trend_adc[7],
+    const uint16_t trend_tcode[7],
+    const int16_t  trend_adj[7],
+    const bool     trend_err[7],
+    const uint16_t hist_adc[3],
+    const uint16_t hist_tcode[3],
+    const int16_t  hist_adj[3],
+    const bool     hist_err[3],
+    uint32_t* mg_dl_out,
+    uint32_t* mmol_tenths_out);
 
 #ifdef __cplusplus
 }

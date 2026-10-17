@@ -1,21 +1,26 @@
 # Current Status and Engineering Notes
 
-Updated 2026-10-16. This file tracks what is verified in the current code, what we learned from side-by-side testing, and which early reverse-engineering theories were corrected along the way.
+Updated 2026-10-17. This file tracks what is verified in the current code, the complete instruction-recovered native runtime calibration closure (`libcalibrate.so` `0x68a74..0x86908`), and which early reverse-engineering theories were corrected along the way.
 
 ## 1. Current builds (`dist/`)
 
-The application code is compiled and verified against all three major Flipper Zero firmwares (`target 7`):
+The application code is compiled and verified against all major Flipper Zero firmwares (`target 7`):
 
-- **Official Firmware (OFW 1.5.1, API 88.2)**: `dist/LibreLibre-ofw.fap` (`dist/LibreLibre.fap`), 56,756 bytes, SHA-256 `4ceb9b0c7aa0629cf704c675ca7664aa6cd9e27101d05a1627e73ea9cae6b5dd`
-- **Unleashed (`unlshd-094`, API 88.19)**: `dist/LibreLibre-unleashed.fap`, 56,748 bytes, SHA-256 `e0005aae1260760898675a539b2e643b695615a9b066e6f54016fc95ddf0054c`
-- **Momentum (`mntm-012`, API 87.1)**: `dist/LibreLibre-momentum.fap`, 56,756 bytes, SHA-256 `c8853fb840e1cad45f52e9e87111aad8153debf69afe026c3403c75279ac930c`
+- **Unleashed (`unlshd-094e`, API 88.19)**: `dist/LibreLibre-unleashed.fap` (`dist/LibreLibre.fap`), 69,656 bytes, MD5 `4171cb07391fc3bc0f61a66da9c8bc5c`, SHA-256 `bfd09ec07d94a6a720f9f9df1563cf6ce4b62ec781d41a6a9b0b2881d40aaf79` (flashed and verified live on Flipper Spark)
+- **Official Firmware (OFW 1.5.1, API 88.2)**: `dist/LibreLibre-device.fap`, 69,664 bytes, MD5 `a1c22520dd38c8fdeb57acba9b48e203`, SHA-256 `59888c7ac7ed1c744b5418cb55a7bb0069b2efd535d435549619f5bbe70ed4ad`
+- **Momentum (`mntm-012`, API 87.1)**: `dist/LibreLibre-momentum.fap`, 69,648 bytes, MD5 `b945b486175117f21001c3ae451efdc4`, SHA-256 `e74494da64028fa94772d3d9ec6d0939c7eece8b2ea65a72bb50b417146c2718`
 
 What the app runs on a scan:
-- Calls `lc_vendor_current_trend` on the newest 1-minute trend record (offset 28, 16 slots, indexed by `(plain[26] + 15) % 16`).
-- Uses the scanned sensor's own calibration fields (`i1..i6`, `t1`, `t2`) from FRAM header/footer.
-- Checks completeness (344 bytes), EU2 profile, all 3 section CRCs, active sensor state (`status == 3`), valid remaining life (`0 < age < max_life`), and zero error/quality flags on the newest trend record.
-- Displays the single `mmol/L` reading, sensor-clock freshness (`Fresh 0m=now`), remaining sensor life (`Left Xd Yh`), derived 11-character serial, and SD save verification.
-- Shows `Rescan the sensor` whenever any check fails. There is no fallback to the 15-minute history ring or to older trend slots.
+- Calls `lc_vendor_current_trend` and `lc_vendor_extract_fram_series`, executing the complete instruction-recovered native runtime pipeline (`libcalibrate.so` `0x68a74..0x86908`):
+  1. Windowed thermistor temperature smoothing (`0x85534`: radius 3 on trend, radius 1 on history) and 5-point trend ADC moving average (`0x86908`).
+  2. Runtime factory parameter block (`VMA 0xa1900`, `0x68a74 -> 0x8b26f`) producing `c18c` and `c188` (`G[i] = sig[i] / c18c + c188`, `6,516 / 6,516 = 100.00%` bit-exact).
+  3. Exact sample minute `cg_id = ((raw_age & 0xF) == plain[26]) ? raw_age : (raw_age - 1)` (`0x8ac84`) and history de-pack phase `phase = ((cg_id % 15) <= 1) ? 1 : 0` (`0x881e0`).
+  4. 3-window OLS + midpoint history smoother (`0x71f50..0x7308c`).
+  5. 4-horizon physiological-lag rate projections (`0x7d8b2`, `0x75950..0x79550`) over trend lags `{0, 2, 4, 6, 7, 12, 15}` and history lags `{0, 15, 30}`.
+  6. Bi-exponential sensor-age baseline drift (`0x81fc0`) and power-6 rational display curve + `-4.0` offset (`0x765ec, 0x7717a`).
+- Verified **68 / 68 (100.00%) exact** on cold current, **68 / 68 (100.00%) exact** on warm current, and **2,108 / 2,108 (100.00%) exact** on 32-slot history series against the native Oracle with zero empirical fitting.
+- Live hardware verification on Flipper Spark (`2026-10-17T22:08:58`, `age = 6234 min`): read `5.4 mmol/L` (`98.47 mg/dL = 5.47 mmol/L`) vs `5.6 mmol/L` on LibreLink while falling `-1.0 mg/dL/min`.
+- Deployed live across Flipper Zero and CircuitMess Artemis Watch (`aka-glint/librelibre-esp32-artemis`), and synced to Waveshare ESP32-S3-Touch-LCD-2 and Heltec WiFi LoRa 32 V3.
 
 ## 2. Side-by-side comparison notes
 

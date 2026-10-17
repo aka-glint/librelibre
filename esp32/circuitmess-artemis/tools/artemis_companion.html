@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ARTEMIS // Companion Dashboard</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f293d;
+      --cyan: #00f3ff;
+      --magenta: #ff0055;
+      --green: #00ff9d;
+      --amber: #ffb700;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", monospace, sans-serif;
+      padding: 14px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: linear-gradient(90deg, #10192e, #0c1220);
+      border: 1px solid var(--cyan);
+      border-radius: 8px;
+      box-shadow: 0 0 14px rgba(0, 243, 255, 0.2);
+      margin-bottom: 16px;
+    }
+    .brand {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      text-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
+    }
+    .brand span { color: var(--magenta); }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .badge-disconnected { background: #3b0716; color: var(--magenta); border: 1px solid var(--magenta); }
+    .badge-connected { background: #06402b; color: var(--green); border: 1px solid var(--green); box-shadow: 0 0 8px rgba(0, 255, 157, 0.4); }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .col { flex: 1; }
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    input, select {
+      width: 100%;
+      background: #0b111e;
+      border: 1px solid #2d3b55;
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+    input:focus, select:focus { border-color: var(--cyan); }
+    button {
+      background: #162035;
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 9px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.15s ease-in-out;
+      width: 100%;
+      touch-action: manipulation;
+    }
+    button:active { transform: scale(0.97); }
+    button.btn-primary {
+      background: var(--cyan);
+      color: #050b14;
+      border-color: var(--cyan);
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+    }
+    button.btn-danger {
+      border-color: var(--magenta);
+      color: var(--magenta);
+      background: rgba(255, 0, 85, 0.08);
+    }
+    button.btn-amber {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: rgba(255, 183, 0, 0.08);
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+    .seg-btn {
+      padding: 6px 2px;
+      font-size: 0.75rem;
+      border-color: #2b3952;
+      color: #94a3b8;
+    }
+    .seg-btn.active {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0, 243, 255, 0.15);
+      box-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+    }
+    .console-box {
+      background: #060910;
+      border: 1px solid #1a2336;
+      border-radius: 6px;
+      height: 140px;
+      overflow-y: auto;
+      font-family: Consolas, monospace;
+      font-size: 0.74rem;
+      padding: 8px;
+      color: #a5b4fc;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-tx { color: var(--green); }
+    .log-rx { color: var(--cyan); }
+    .log-err { color: var(--magenta); }
+    .stat-pill {
+      background: #0c1322;
+      border: 1px solid #1e293b;
+      padding: 6px 8px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .stat-val { font-size: 0.95rem; font-weight: 700; color: #fff; }
+    .stat-lbl { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="header">
+    <div class="brand">Artemis <span>//</span> OS</div>
+    <div>
+      <span id="connStatus" class="badge badge-disconnected">DISCONNECTED</span>
+    </div>
+  </div>
+
+  <!-- Connect Card -->
+  <div class="card">
+    <div class="row" style="margin-bottom:0">
+      <div class="col">
+        <button id="btnConnect" class="btn-primary" onclick="toggleConnect()">CONNECT OVER BLE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div class="card" id="telemetryCard" style="display:none">
+    <div class="card-title">Live Telemetry</div>
+    <div class="grid-3" style="margin-bottom: 8px;">
+      <div class="stat-pill">
+        <div class="stat-val" id="telBat">--</div>
+        <div class="stat-lbl">Battery</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-val" id="telBL">--</div>
+        <div class="stat-lbl">Brightness</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-val" id="telDND">--</div>
+        <div class="stat-lbl">Night DND</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="stat-pill">
+        <div class="stat-val" id="telPS">--</div>
+        <div class="stat-lbl">Power Saver</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-val" id="telICE" style="font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">--</div>
+        <div class="stat-lbl">Active ICE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ICE Contact Settings -->
+  <div class="card">
+    <div class="card-title">
+      <span>ICE Emergency Contact</span>
+      <button style="width:auto; padding:3px 8px; font-size:0.68rem;" onclick="queryIce()">Fetch</button>
+    </div>
+    <div class="row">
+      <div class="col">
+        <label>Contact Name</label>
+        <input type="text" id="iceName" placeholder="Jane Doe" maxlength="28">
+      </div>
+      <div class="col">
+        <label>Phone Number</label>
+        <input type="tel" id="icePhone" placeholder="+447700900123" maxlength="28">
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:0">
+      <div class="col">
+        <button class="btn-primary" onclick="saveIceContact()">Save ICE to Watch</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watch Settings -->
+  <div class="card">
+    <div class="card-title">
+      <span>Display & System</span>
+      <button style="width:auto; padding:3px 8px; font-size:0.68rem;" onclick="queryConfig()">Fetch</button>
+    </div>
+    
+    <label>Backlight Brightness</label>
+    <div class="grid-5" style="margin-bottom:12px;">
+      <button class="seg-btn" id="bl10" onclick="setBrightness(10)">10%</button>
+      <button class="seg-btn" id="bl25" onclick="setBrightness(25)">25%</button>
+      <button class="seg-btn" id="bl45" onclick="setBrightness(45)">45%</button>
+      <button class="seg-btn" id="bl70" onclick="setBrightness(70)">70%</button>
+      <button class="seg-btn" id="bl100" onclick="setBrightness(100)">100%</button>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label>Night DND</label>
+        <select id="cfgDND" onchange="sendDndChange()">
+          <option value="0">Disabled</option>
+          <option value="1">Enabled (22:00 - 07:00)</option>
+        </select>
+      </div>
+      <div>
+        <label>Power Saver</label>
+        <select id="cfgPS" onchange="sendSaverChange()">
+          <option value="0">Normal (240MHz)</option>
+          <option value="1">Auto (<=20% batt)</option>
+          <option value="2">Emergency (80MHz)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:10px;">
+      <div>
+        <label>Hourly Chime</label>
+        <select id="cfgChime" onchange="sendChimeChange()">
+          <option value="1">On</option>
+          <option value="0">Off</option>
+        </select>
+      </div>
+      <div>
+        <label>Raise Wake</label>
+        <select id="cfgWake" onchange="sendWakeChange()">
+          <option value="1">On</option>
+          <option value="0">Off</option>
+        </select>
+      </div>
+      <div>
+        <label>Cyber RGB</label>
+        <select id="cfgRGB" onchange="sendRgbChange()">
+          <option value="1">On</option>
+          <option value="0">Off</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <label>Date Format</label>
+      <select id="cfgDate" onchange="sendDateChange()">
+        <option value="0">DD MON (e.g. SAT 17 OCT)</option>
+        <option value="1">DD/MM/YY (e.g. 17/10/26)</option>
+        <option value="2">MM/DD/YY (e.g. 10/17/26)</option>
+        <option value="3">DD.MM.YY (e.g. 17.10.26)</option>
+        <option value="4">ISO 8601 (e.g. 2026-10-17)</option>
+        <option value="5">DAY D/M (e.g. SAT 17/10)</option>
+      </select>
+    </div>
+
+    <button onclick="syncAllSettings()">Commit All Settings</button>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="card">
+    <div class="card-title">Hardware Controls</div>
+    <div class="grid-2" style="margin-bottom:8px;">
+      <button class="btn-amber" onclick="toggleFlashlight()">Toggle Flashlight</button>
+      <button class="btn-danger" onclick="toggleSos()">Medical SOS Pulse</button>
+    </div>
+    <div class="grid-3">
+      <button onclick="sendCommand('WAKE_NOW\n')">Wake Screen</button>
+      <button onclick="sendCommand('SLEEP_NOW\n')">Sleep Screen</button>
+      <button onclick="sendCommand('CLEAR_NOTIFS\n')">Clear Notifs</button>
+    </div>
+  </div>
+
+  <!-- Test Notification -->
+  <div class="card">
+    <div class="card-title">Push Notification to Watch</div>
+    <div class="row">
+      <div class="col">
+        <label>Sender / App</label>
+        <input type="text" id="notifApp" value="Companion" maxlength="20">
+      </div>
+      <div class="col">
+        <label>Title</label>
+        <input type="text" id="notifTitle" value="Alert" maxlength="28">
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label>Message Body</label>
+      <input type="text" id="notifBody" value="Test notification from Web Dashboard" maxlength="80">
+    </div>
+    <button onclick="sendTestNotification()">Send To Watch</button>
+  </div>
+
+  <!-- Serial Console -->
+  <div class="card">
+    <div class="card-title">
+      <span>BLE Terminal</span>
+      <button style="width:auto; padding:3px 8px; font-size:0.68rem;" onclick="clearConsole()">Clear</button>
+    </div>
+    <div class="console-box" id="consoleBox"></div>
+  </div>
+
+  <script>
+    const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const NUS_TX_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Phone TX -> Watch RX
+    const NUS_RX_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Watch TX -> Phone RX
+
+    let bleDevice = null;
+    let bleServer = null;
+    let txChar = null;
+    let rxChar = null;
+    let isConnected = false;
+    let rxBuffer = '';
+
+    function log(msg, type = 'rx') {
+      const box = document.getElementById('consoleBox');
+      const time = new Date().toTimeString().split(' ')[0];
+      const div = document.createElement('div');
+      div.className = 'log-' + type;
+      div.textContent = `[${time}] ${msg}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('consoleBox').innerHTML = '';
+    }
+
+    function updateConnBadge(connected) {
+      isConnected = connected;
+      const b = document.getElementById('connStatus');
+      const btn = document.getElementById('btnConnect');
+      const tel = document.getElementById('telemetryCard');
+      if (connected) {
+        b.className = 'badge badge-connected';
+        b.textContent = 'CONNECTED';
+        btn.textContent = 'DISCONNECT';
+        btn.className = 'btn-danger';
+        tel.style.display = 'block';
+      } else {
+        b.className = 'badge badge-disconnected';
+        b.textContent = 'DISCONNECTED';
+        btn.textContent = 'CONNECT OVER BLE';
+        btn.className = 'btn-primary';
+        tel.style.display = 'none';
+      }
+    }
+
+    async function toggleConnect() {
+      if (isConnected) {
+        if (bleDevice && bleDevice.gatt.connected) {
+          bleDevice.gatt.disconnect();
+        }
+        updateConnBadge(false);
+        log('Disconnected.', 'err');
+        return;
+      }
+
+      if (!navigator.bluetooth) {
+        alert('Web Bluetooth is not supported in this browser. Please use Chrome on Android, Linux, Mac, or Windows.');
+        return;
+      }
+
+      try {
+        log('Scanning for Bangle.js / Artemis watch...', 'rx');
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [
+            { namePrefix: 'Bangle.js' },
+            { namePrefix: 'Artemis' },
+            { services: [NUS_SERVICE_UUID] }
+          ],
+          optionalServices: [NUS_SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+        log(`Connecting to ${bleDevice.name || 'Artemis'}...`, 'rx');
+        bleServer = await bleDevice.gatt.connect();
+
+        log('Getting NUS Service...', 'rx');
+        const service = await bleServer.getPrimaryService(NUS_SERVICE_UUID);
+
+        log('Getting Characteristics...', 'rx');
+        txChar = await service.getCharacteristic(NUS_TX_UUID);
+        rxChar = await service.getCharacteristic(NUS_RX_UUID);
+
+        await rxChar.startNotifications();
+        rxChar.addEventListener('characteristicvaluechanged', handleBleNotification);
+
+        updateConnBadge(true);
+        log('Connected and synchronized over BLE NUS!', 'tx');
+
+        // Query status and config immediately
+        setTimeout(queryStatus, 300);
+        setTimeout(queryIce, 700);
+      } catch (err) {
+        log(`Connection failed: ${err.message}`, 'err');
+        updateConnBadge(false);
+      }
+    }
+
+    function onDisconnected() {
+      log('Watch disconnected.', 'err');
+      updateConnBadge(false);
+    }
+
+    function handleBleNotification(event) {
+      const decoder = new TextDecoder();
+      const chunk = decoder.decode(event.target.value);
+      rxBuffer += chunk;
+
+      let idx;
+      while ((idx = rxBuffer.indexOf('\n')) >= 0) {
+        const line = rxBuffer.substring(0, idx).trim();
+        rxBuffer = rxBuffer.substring(idx + 1);
+        if (line) {
+          parseWatchLine(line);
+        }
+      }
+    }
+
+    function parseWatchLine(line) {
+      log(`RX: ${line}`, 'rx');
+
+      // Status response
+      if (line.startsWith('STATUS|')) {
+        const parts = line.split('|');
+        for (let i = 1; i < parts.length; i++) {
+          const [k, v] = parts[i].split('=');
+          if (k === 'bat') document.getElementById('telBat').textContent = v + '%';
+          if (k === 'bl') {
+            document.getElementById('telBL').textContent = v + '%';
+            highlightBright(parseInt(v, 10));
+          }
+          if (k === 'dnd') {
+            document.getElementById('telDND').textContent = v === '1' ? 'ACTIVE' : 'OFF';
+            document.getElementById('cfgDND').value = v;
+          }
+          if (k === 'ps') {
+            const m = ['Normal', 'Auto', 'Emergency'][parseInt(v, 10)] || 'Normal';
+            document.getElementById('telPS').textContent = m;
+            document.getElementById('cfgPS').value = v;
+          }
+          if (k === 'ice') {
+            document.getElementById('telICE').textContent = v || 'None';
+          }
+          if (k === 'df') {
+            document.getElementById('cfgDate').value = v;
+          }
+        }
+      }
+
+      // JSON responses
+      if (line.startsWith('{') && line.endsWith('}')) {
+        try {
+          const j = JSON.parse(line);
+          if (j.t === 'ice') {
+            if (j.name) document.getElementById('iceName').value = j.name;
+            if (j.phone) document.getElementById('icePhone').value = j.phone;
+            document.getElementById('telICE').textContent = j.name || 'None';
+          }
+          if (j.t === 'cfg') {
+            if (j.bright !== undefined) highlightBright(j.bright);
+            if (j.dnd !== undefined) document.getElementById('cfgDND').value = j.dnd;
+            if (j.saver !== undefined) document.getElementById('cfgPS').value = j.saver;
+            if (j.chime !== undefined) document.getElementById('cfgChime').value = j.chime;
+            if (j.rw !== undefined) document.getElementById('cfgWake').value = j.rw;
+            if (j.rgb !== undefined) document.getElementById('cfgRGB').value = j.rgb;
+            if (j.date_fmt !== undefined) document.getElementById('cfgDate').value = j.date_fmt;
+          }
+        } catch (e) {}
+      }
+    }
+
+    async function sendCommand(cmd) {
+      if (!txChar || !isConnected) {
+        log('Error: Watch not connected.', 'err');
+        return;
+      }
+      try {
+        log(`TX: ${cmd.trim()}`, 'tx');
+        const encoder = new TextEncoder();
+        const data = encoder.encode(cmd.endsWith('\n') ? cmd : cmd + '\n');
+        
+        // Split into chunks if > 20 bytes (standard BLE MTU)
+        const CHUNK_SIZE = 20;
+        for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+          const chunk = data.slice(i, i + CHUNK_SIZE);
+          if (txChar.writeValueWithoutResponse) {
+            await txChar.writeValueWithoutResponse(chunk);
+          } else {
+            await txChar.writeValue(chunk);
+          }
+          await new Promise(r => setTimeout(r, 20));
+        }
+      } catch (err) {
+        log(`Send error: ${err.message}`, 'err');
+      }
+    }
+
+    function highlightBright(pct) {
+      [10, 25, 45, 70, 100].forEach(p => {
+        const btn = document.getElementById('bl' + p);
+        if (btn) btn.className = (p === pct) ? 'seg-btn active' : 'seg-btn';
+      });
+    }
+
+    function setBrightness(pct) {
+      highlightBright(pct);
+      sendCommand(`SET_BL|${pct}\n`);
+    }
+
+    function sendDndChange() {
+      const v = document.getElementById('cfgDND').value;
+      sendCommand(`NIGHT_DND|${v}\n`);
+    }
+
+    function sendSaverChange() {
+      const v = document.getElementById('cfgPS').value;
+      sendCommand(`PWR_SAVER|${v}\n`);
+    }
+
+    function sendChimeChange() {
+      const v = document.getElementById('cfgChime').value;
+      sendCommand(`HOURLY_CHM|${v}\n`);
+    }
+
+    function sendWakeChange() {
+      const v = document.getElementById('cfgWake').value;
+      sendCommand(`RAISE_WAKE|${v}\n`);
+    }
+
+    function sendRgbChange() {
+      const v = document.getElementById('cfgRGB').value;
+      sendCommand(`RGB_LED|${v}\n`);
+    }
+
+    function sendDateChange() {
+      const v = document.getElementById('cfgDate').value;
+      sendCommand(`DATE_FMT|${v}\n`);
+    }
+
+    function saveIceContact() {
+      const name = document.getElementById('iceName').value.trim();
+      const phone = document.getElementById('icePhone').value.trim();
+      if (!name || !phone) {
+        alert('Please enter both a name and a phone number.');
+        return;
+      }
+      sendCommand(`SET_ICE|${name}|${phone}\n`);
+    }
+
+    function queryIce() {
+      sendCommand('GB({"t":"get_ice"})\n');
+    }
+
+    function queryConfig() {
+      sendCommand('GB({"t":"get_cfg"})\n');
+    }
+
+    function queryStatus() {
+      sendCommand('STATUS\n');
+    }
+
+    function syncAllSettings() {
+      const dnd = document.getElementById('cfgDND').value;
+      const saver = document.getElementById('cfgPS').value;
+      const chime = document.getElementById('cfgChime').value;
+      const rw = document.getElementById('cfgWake').value;
+      const rgb = document.getElementById('cfgRGB').value;
+      const df = document.getElementById('cfgDate').value;
+      const json = JSON.stringify({
+        t: "set_cfg",
+        dnd: parseInt(dnd, 10),
+        saver: parseInt(saver, 10),
+        chime: parseInt(chime, 10),
+        raise_wake: parseInt(rw, 10),
+        rgb_led: parseInt(rgb, 10),
+        date_fmt: parseInt(df, 10)
+      });
+      sendCommand(`GB(${json})\n`);
+    }
+
+    let flashlightState = false;
+    function toggleFlashlight() {
+      flashlightState = !flashlightState;
+      sendCommand(`FLASHLIGHT|${flashlightState ? 1 : 0}\n`);
+    }
+
+    let sosState = false;
+    function toggleSos() {
+      sosState = !sosState;
+      sendCommand(`SOS|${sosState ? 1 : 0}\n`);
+    }
+
+    function sendTestNotification() {
+      const app = document.getElementById('notifApp').value.trim() || 'Companion';
+      const title = document.getElementById('notifTitle').value.trim() || 'Notice';
+      const body = document.getElementById('notifBody').value.trim() || 'Hello from Web Dashboard';
+      sendCommand(`TEST_NOTIF|${app}|${title}|${body}\n`);
+    }
+  </script>
+</body>
+</html>

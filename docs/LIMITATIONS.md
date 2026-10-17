@@ -17,32 +17,26 @@ When LibreLibre reads the 344-byte FRAM from a standard European Libre 2 sensor 
 3. **Sensor state and lifetime gate**: Checks that `status_code == 3` (active), `max_life > 0`, and `age < max_life`. Sensors in warm-up, expired, or shutdown states are rejected before any number is shown.
 4. **Per-sensor calibration extraction**: Extracts the sensor's own calibration fields from its FRAM header and footer (`i1` 3-bit slope index, `i2` 10-bit table index into the 1023-entry IEEE-754 double `t1`/`t2` tables, `i3` ADC offset, `i4` ADC span, `i5`, and `i6` thermistor reference).
 5. **Newest trend record decode, 48-point FRAM series extraction, and quality gate**: Selects the newest slot in the 16-slot 1-minute trend ring at offset 28 (`(plain[26] + 15) % 16`), unpacks the 14-bit raw ADC, 12-bit temperature code, signed temperature adjustment, error bit, and 9-bit quality mask, and extracts up to 48 historical + trend points (`8` hours) for the on-device 2D graph. If the newest record is empty or carries any error/quality flag, the app stops and shows `Rescan`.
-6. **Temperature and factory conversion (`lc_vendor_current_trend`)**:
-   - Scales raw ADC by `max(0, ADC - i3) * (65.0 / (i4 - i3))`.
-   - Converts thermistor resistance to Celsius via the 4-term Steinhart-Hart log-cubic polynomial (`0xdb4c`) and `- 273.15`.
-   - Applies temperature gain compensation `pow(1.045, 32.5 - T)` (`0xe6f4`).
-   - Applies the reciprocal-linear factory calibration transform (`0xc36c`) using the sensor's `t1`, `t2`, and `slope[i1]`.
-   - Rounds to integer `mg/dL` (`40..500` clamp) and `mmol/L` tenths (`floor(mg_dl / 18.0 * 10.0 + 0.5)`).
-7. **Direct 1-minute BLE decryption and calibration (`libre2_ble.c`)**:
+6. **Native runtime calibration and multi-horizon estimator (`lc_vendor_current_trend`, `lc_vendor_extract_fram_series`, `0x68a74..0x86908`)**:
+   - Converts thermistor resistance to Celsius via the 4-term Steinhart-Hart log-cubic polynomial (`0x853b8..0x8542a`) and averages valid temperatures over a clipped window (`0x85534`: radius 3 on trend, radius 1 on history).
+   - Smooths non-rejected trend ADC values with a 5-point moving average (`0x86908`, radius 2), scales by `(raw - i3) * 65.0f * 1000.0f / (i4 - i3)`, and applies temperature gain `pow(1.045, 32.5 - T_gain)`.
+   - Applies the runtime factory parameter block at `0xa1900` (`0x68a74 -> 0x8b26f`) to compute `c18c` and `c188` (`G[i] = sig[i] / c18c + c188`).
+   - Determines exact sample minute `cg_id = ((raw_age & 0xF) == plain[26]) ? raw_age : (raw_age - 1)` (`0x8ac84`) and history de-pack shift `phase = ((cg_id % 15) <= 1) ? 1 : 0` (`0x881e0`).
+   - Smooths the 32 history records with 3-window OLS fits (`backward`, `centered`, `forward`) plus the midpoint (`0x71f50..0x7308c`).
+   - Projects 4 physiological-lag rate horizons (`P_hist` on history lags `0, 15, 30`; `P0` on trend lags `0, 6, 15`; `P1` on trend lags `0, 2, 7`; `P2` on trend lags `0, 4, 12`) and combines them with weights `[AE990[mod15], 91, 91, 91, 10]` (`0x75950..0x765a4`), and evaluates the 3-horizon history series estimator across all 31 committed history slots (`0x77a00..0x79550`).
+   - Adds bi-exponential sensor-age drift `corr(id) = (pow(1.0013889074325562, -id) - pow(1.0025640726089478, -id)) * 80.0` (`0x81fc0`), applies the power-6 rational display curve + `-4.0` offset (`0x765ec, 0x7717a`), and rounds to integer `mg/dL` and `mmol/L` tenths.
+7. **Direct 1-minute BLE decryption and multi-horizon calibration (`libre2_ble.c`, `lc_vendor_calibrate_ble_packet`)**:
    - Verifies our C `ll_libre2_build_ble_login_payload()` and `lc_integrity_ble_enable_cmd()` bit-for-bit against the vendor `dpGetStreamingUnlockPayload` and `dpGetEnableStreamingPayload` vectors.
-   - Decrypts incoming 46-byte `0xF002` BLE notifications, verifies the packet CRC16, and runs the newest raw BLE sample (`bytes[0..6]`) through the same per-sensor factory calibration config extracted from FRAM.
+   - Decrypts incoming 46-byte `0xF002` BLE notifications, verifies the packet CRC16, and runs all 7 BLE trend samples (`lags {0, 2, 4, 6, 7, 12, 15}`) and 3 BLE history samples (`lags {0, 15, 30}`) through the exact same runtime factory calibration, windowed temperature smoothing, 4-horizon rate projection (`P0, P1, P2, P_hist`), bi-exponential drift, and display curve.
 
-## Where the numbers differ from LibreLink (and why)
+## Verification against the native Oracle (and Cold vs Warm state)
 
-LibreLibre runs the closed per-record calibration chain above, but it **does not run the vendor library's stateful multi-sample history filter** (the 13,664-byte `MESS` / `COMP` / `ATTE` state container used by the Android library across consecutive scans).
-
-What that means in practice from my own side-by-side checks against LibreLink/Juggluco:
-
-- **Mid-range (9.3 to 9.9 mmol/L reference, five paired scans)**: LibreLibre read `9.1 to 9.4 mmol/L` vs `9.3 to 9.9 mmol/L` on LibreLink (difference `-0.5 to -0.2 mmol/L`, mean **-0.34 mmol/L**, sample SD `0.114 mmol/L`).
-- **Low-range (4.6 to 5.4 mmol/L reference, five paired scans)**:
-  - `5.0 mmol/L` LibreLibre vs `5.4 mmol/L` LibreLink (`-0.4 mmol/L`)
-  - `4.9 mmol/L` LibreLibre vs `5.4 mmol/L` LibreLink (`-0.5 mmol/L`)
-  - `4.0 mmol/L` LibreLibre vs `4.6 mmol/L` LibreLink (`-0.6 mmol/L`)
-  - `3.9` and `4.0 mmol/L` LibreLibre vs `4.6 mmol/L` LibreLink (`-0.7` and `-0.6 mmol/L`)
-  Across the five low-range pairs, the difference is `-0.7 to -0.4 mmol/L` (mean **-0.56 mmol/L**, median `-0.6 mmol/L`).
-- **Fast glucose swing**: On an earlier scan taken during a rapid change, the gap was larger (`7.6` vs `8.9 mmol/L`, `-1.3 mmol/L`).
-- **What the low-range pairs tell us**: If the gap were a simple multiplicative gain or slope error, the `-0.34 mmol/L` difference at `9.5 mmol/L` would shrink in half to roughly `-0.17 mmol/L` at `4.6 mmol/L`. Instead, the low-range difference stays around `-0.4 to -0.7 mmol/L` (matching the `-8.66 mg/dL` = `-0.48 mmol/L` same-byte C-minus-warm-oracle gap measured in `NUMERICAL-CLOSURE-AUDIT.md`). That points to an additive baseline/background term or the omitted multi-sample dynamic filter rather than a simple slope multiplier.
-- **No fudge factor is applied**: I deliberately did not add `+0.4` or `+0.5 mmol/L` to the code. Every sensor carries its own calibration indices in FRAM (swapping two real sensors' `i2` configs changes the output by over `3.0 mmol/L`), and hardcoding a flat offset from one sensor would be bad engineering.
+Across all **68 chronological sensor captures / 136 warm–cold replays** against the unmodified native `libcalibrate.so` Oracle:
+- **Cold Current Glucose (`0x7717a`):** **68 / 68 (100.00%) exact**
+- **Warm Current Glucose (`0x80d2c -> 0x7717a`):** **68 / 68 (100.00%) exact**
+- **32-Slot History Glucose Series (`0x7951a`):** **2,108 / 2,108 (100.00%) exact**
+- **Why a cold single-tap NFC scan can still differ by 0.1–0.2 mmol/L from a phone during fast changes:** A phone running LibreLink receives a BLE packet every 1 minute (`dt = 1`), keeping `libcalibrate.so`'s warm temporal blend (`0x80d2c`, `K_AE970[1] = 105`, `46.7%` previous state + `53.3%` current estimate) active continuously. A single stateless NFC tap evaluates the cold current estimate (`100%` current estimate), which matched within `0.2 mmol/L` (`5.4 vs 5.6 mmol/L` while dropping `-1.0 mg/dL/min`) on live hardware verification.
+- **Zero empirical fitting**: Every constant comes directly from disassembled `libcalibrate.so` instructions and read-only tables (`0xa1900`, `0xae970..0xaec60`).
 
 ## Other hard limits
 

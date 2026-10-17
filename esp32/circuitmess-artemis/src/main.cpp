@@ -199,11 +199,13 @@ static uint8_t s_cfg_deck_pulse_idx    = 0U;   // 0=OFF, 1=5m, 2=10m, 3=15m, 4=3
 static bool    s_cfg_notif_light       = true; // Flash perimeter LEDs on phone notification
 static bool    s_cfg_notif_sound       = true; // Melodic chime on phone notification
 static bool    s_cfg_alarm_sound       = true; // Buzzer sound for latching urgent glucose alarms
-static uint8_t s_settings_row          = 0U;   // 0..22 cursor on PAGE_SETTINGS
+static uint8_t s_settings_row          = 0U;   // 0..23 cursor on PAGE_SETTINGS
 static uint8_t s_cfg_power_saver       = 1U;   // 0=OFF, 1=AUTO (<=15%), 2=ON
 static bool    s_power_saver_active    = false;
 static bool    s_cfg_night_dnd         = false;// Disables raise-to-wake & routine notif alerts
 static bool    s_cfg_hourly_chime      = false;// Retro double-pip on the hour
+static uint8_t s_cfg_date_format       = 0U;   // 0=DD MON, 1=DD/MM/YY, 2=MM/DD/YY, 3=DD.MM.YY, 4=ISO 8601, 5=DAY D/M
+static const char* const kDateFmtLabels[6] = { "DD MON", "DD/MM/YY", "MM/DD/YY", "DD.MM.YY", "ISO 8601", "DAY D/M" };
 static bool    s_flashlight_active     = false;// 6 perimeter LEDs + 100% white screen floodlight
 static unsigned long s_flashlight_start_ms = 0UL;
 static bool    s_sos_active            = false;// Medical Emergency Morse optical/audio SOS
@@ -956,6 +958,25 @@ static void setBacklightPercent(uint8_t pct) {
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
 }
 
+struct WatchDateTime {
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t wday;
+    uint8_t hour;
+    uint8_t min;
+    uint8_t sec;
+};
+static bool readPcf8563Rtc(WatchDateTime* dt);
+
+static bool isNightTime() {
+    WatchDateTime dt;
+    if(readPcf8563Rtc(&dt)) {
+        return (dt.hour >= 22U || dt.hour < 7U);
+    }
+    return false;
+}
+
 static bool s_woke_by_raise = false;
 static unsigned long s_wrist_down_since_ms = 0UL;
 
@@ -976,7 +997,7 @@ static void wakeScreen(const char* reason) {
         s_screen_asleep = false;
         uint8_t target_bl = kBrightPctTable[s_cfg_bright_idx % 5U];
         if(s_power_saver_active && target_bl > 20U) target_bl = 20U;
-        if(s_cfg_night_dnd && target_bl > 15U) target_bl = 15U;
+        if(s_cfg_night_dnd && isNightTime() && target_bl > 15U) target_bl = 15U;
         setBacklightPercent(target_bl);
         updateRgbLedStatus();
         Serial.printf("SCREEN_WAKE|reason=%s|cpu=%uMHz\n", reason ? reason : "activity", (unsigned)getCpuFrequencyMhz());
@@ -1014,15 +1035,6 @@ static void initPcf8563Rtc() {
     }
 }
 
-struct WatchDateTime {
-    uint16_t year;
-    uint8_t month;
-    uint8_t day;
-    uint8_t wday;
-    uint8_t hour;
-    uint8_t min;
-    uint8_t sec;
-};
 
 static bool readPcf8563Rtc(WatchDateTime* dt) {
     if(!dt) return false;
@@ -1056,6 +1068,33 @@ static bool writePcf8563Rtc(const WatchDateTime& dt) {
     Wire.write(dec2bcd(dt.month) | 0x80U);
     Wire.write(dec2bcd((uint8_t)(dt.year % 100U)));
     return Wire.endTransmission(true) == 0;
+}
+
+static void formatDateString(const WatchDateTime& dt, char* buf, size_t max_len, uint8_t fmt) {
+    static const char* const kWdays[7] = { "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT" };
+    static const char* const kMonths[12] = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+
+    switch(fmt % 6U) {
+        case 1: // DD/MM/YY (e.g. 17/10/26)
+            snprintf(buf, max_len, "%02u/%02u/%02u", dt.day, dt.month, dt.year % 100U);
+            break;
+        case 2: // MM/DD/YY (e.g. 10/17/26)
+            snprintf(buf, max_len, "%02u/%02u/%02u", dt.month, dt.day, dt.year % 100U);
+            break;
+        case 3: // DD.MM.YY (e.g. 17.10.26)
+            snprintf(buf, max_len, "%02u.%02u.%02u", dt.day, dt.month, dt.year % 100U);
+            break;
+        case 4: // ISO 8601 (e.g. 2026-10-17)
+            snprintf(buf, max_len, "%04u-%02u-%02u", dt.year, dt.month, dt.day);
+            break;
+        case 5: // DAY D/M (e.g. SAT 17/10)
+            snprintf(buf, max_len, "%s %02u/%02u", kWdays[dt.wday % 7U], dt.day, dt.month);
+            break;
+        case 0: // TEXT (e.g. SAT 17 OCT)
+        default:
+            snprintf(buf, max_len, "%s %02u %s", kWdays[dt.wday % 7U], dt.day, kMonths[(dt.month - 1U) % 12U]);
+            break;
+    }
 }
 
 static void setFlashlight(bool on) {
@@ -1132,7 +1171,7 @@ static void saveSettingsToSpiffs() {
     if(!s_spiffs_mounted) return;
     FILE* f = fopen(SETTINGS_CFG_PATH, "wb");
     if(!f) return;
-    fprintf(f, "CFG|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u\n",
+    fprintf(f, "CFG|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u\n",
             (unsigned)(s_cfg_raise_wake ? 1U : 0U),
             (unsigned)s_cfg_timeout_idx,
             (unsigned)s_cfg_bright_idx,
@@ -1150,7 +1189,8 @@ static void saveSettingsToSpiffs() {
             (unsigned)(s_cfg_alarm_sound ? 1U : 0U),
             (unsigned)(s_cfg_power_saver % 3U),
             (unsigned)(s_cfg_night_dnd ? 1U : 0U),
-            (unsigned)(s_cfg_hourly_chime ? 1U : 0U));
+            (unsigned)(s_cfg_hourly_chime ? 1U : 0U),
+            (unsigned)(s_cfg_date_format % 6U));
     fflush(f);
     fclose(f);
 }
@@ -1163,9 +1203,9 @@ static void loadSettingsFromSpiffs() {
     if(fgets(line, sizeof(line), f)) {
         unsigned rw = 1, to = 1, br = 4, th = 0, wl = 42, wh = 130, ul = 36, uh = 160, gl = 1, bm = 0, rgb = 1;
         unsigned dp = 0, nl = 1, ns = 1, as = 1;
-        unsigned ps = 1, nd = 0, hc = 0;
-        int n = sscanf(line, "CFG|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u",
-                       &rw, &to, &br, &th, &wl, &wh, &ul, &uh, &gl, &bm, &rgb, &dp, &nl, &ns, &as, &ps, &nd, &hc);
+        unsigned ps = 1, nd = 0, hc = 0, df = 0;
+        int n = sscanf(line, "CFG|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u",
+                       &rw, &to, &br, &th, &wl, &wh, &ul, &uh, &gl, &bm, &rgb, &dp, &nl, &ns, &as, &ps, &nd, &hc, &df);
         if(n >= 4) {
             s_cfg_raise_wake  = (rw != 0U);
             s_cfg_timeout_idx = (uint8_t)(to % 7U);
@@ -1207,6 +1247,9 @@ static void loadSettingsFromSpiffs() {
         }
         if(n >= 18) {
             s_cfg_hourly_chime = (hc != 0U);
+        }
+        if(n >= 19) {
+            s_cfg_date_format = (uint8_t)(df % 6U);
         }
     }
     fclose(f);
@@ -1852,9 +1895,15 @@ class Libre2ClientCallbacks : public BLEClientCallbacks {
 class Libre2AdvertisedCallbacks : public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) override {
         if(!s_ble_enabled || s_ble_connected || s_ble_do_connect || s_ble_connecting) return;
-        bool match = false;
         std::string addrObj = advertisedDevice.getAddress().toString();
         const char* adv_addr = addrObj.c_str();
+        const char* dev_name = advertisedDevice.haveName() ? advertisedDevice.getName().c_str() : "";
+        bool has_fde3 = (advertisedDevice.haveServiceUUID() &&
+                         advertisedDevice.isAdvertisingService(BLEUUID(LL_BLE_SERVICE_UUID)));
+        bool is_abb = (advertisedDevice.haveName() &&
+                       strncmp(advertisedDevice.getName().c_str(), "ABB", 3) == 0);
+
+        bool match = false;
         if(s_ble_has_mac) {
             char macFwd[20], macRev[20];
             snprintf(macFwd, sizeof(macFwd), "%02x:%02x:%02x:%02x:%02x:%02x",
@@ -1866,13 +1915,16 @@ class Libre2AdvertisedCallbacks : public BLEAdvertisedDeviceCallbacks {
             if(strcasecmp(adv_addr, macFwd) == 0 || strcasecmp(adv_addr, macRev) == 0) {
                 match = true;
             }
-        } else if(advertisedDevice.haveServiceUUID() &&
-                  advertisedDevice.isAdvertisingService(BLEUUID(LL_BLE_SERVICE_UUID))) {
-            match = true;
-        } else if(advertisedDevice.haveName() &&
-                  strncmp(advertisedDevice.getName().c_str(), "ABB", 3) == 0) {
+        }
+        if(!match && (has_fde3 || is_abb)) {
             match = true;
         }
+
+        if(has_fde3 || is_abb || match) {
+            Serial.printf("BLE_ADV_SEEN|addr=%s|name=%s|fde3=%d|match=%d|rssi=%d\n",
+                          adv_addr, dev_name, (int)has_fde3, (int)match, advertisedDevice.getRSSI());
+        }
+
         if(match) {
             s_ble_connecting = true;
             Serial.printf("BLE_MATCH|addr=%s|rssi=%d\n", adv_addr, advertisedDevice.getRSSI());
@@ -2549,6 +2601,24 @@ static void addPhoneNotification(uint32_t id, const char* src, const char* title
                 else if(strncasecmp(eq, "OFF", 3) == 0 || *eq == '0') s_cfg_raise_wake = false;
             }
         }
+        const char* dtp = strcasestr(cfgTag, "DATE=");
+        if(!dtp) dtp = strcasestr(cfgTag, "DATEFMT=");
+        if(dtp) {
+            const char* eq = strchr(dtp, '=');
+            if(eq) {
+                eq++;
+                if(strncasecmp(eq, "TEXT", 4) == 0 || *eq == '0') s_cfg_date_format = 0;
+                else if(strncasecmp(eq, "NUM", 3) == 0 || strncasecmp(eq, "DD/MM", 5) == 0 || *eq == '1') s_cfg_date_format = 1;
+                else if(strncasecmp(eq, "US", 2) == 0 || strncasecmp(eq, "MM/DD", 5) == 0 || *eq == '2') s_cfg_date_format = 2;
+                else if(strncasecmp(eq, "DOT", 3) == 0 || strncasecmp(eq, "DD.MM", 5) == 0 || *eq == '3') s_cfg_date_format = 3;
+                else if(strncasecmp(eq, "ISO", 3) == 0 || strncasecmp(eq, "YY-MM", 5) == 0 || *eq == '4') s_cfg_date_format = 4;
+                else if(strncasecmp(eq, "DAY", 3) == 0 || *eq == '5') s_cfg_date_format = 5;
+                else {
+                    int val = atoi(eq);
+                    if(val >= 0 && val < 6) s_cfg_date_format = (uint8_t)val;
+                }
+            }
+        }
         saveSettingsToSpiffs();
         renderDisplay();
         wakeScreen("cfg_magic");
@@ -2814,6 +2884,9 @@ static bool parseGadgetbridgeLine(const char* raw_line) {
         if(extractJsonField(line, "glitch", val, sizeof(val))) {
             s_cfg_glitch_fx = (atoi(val) != 0);
         }
+        if(extractJsonField(line, "date_fmt", val, sizeof(val)) || extractJsonField(line, "date", val, sizeof(val))) {
+            s_cfg_date_format = (uint8_t)(atoi(val) % 6);
+        }
         saveSettingsToSpiffs();
         renderDisplay();
         wakeScreen("cfg_sync");
@@ -2822,7 +2895,7 @@ static bool parseGadgetbridgeLine(const char* raw_line) {
         return true;
     }
     if(extractJsonField(line, "t", t_type, sizeof(t_type)) && strcmp(t_type, "get_cfg") == 0) {
-        sendJugglucoTx("{\"t\":\"cfg\",\"bright\":%u,\"dnd\":%u,\"saver\":%u,\"theme\":%u,\"chime\":%u,\"rw\":%u,\"rgb\":%u,\"ice_name\":\"%s\",\"ice_phone\":\"%s\"}\n",
+        sendJugglucoTx("{\"t\":\"cfg\",\"bright\":%u,\"dnd\":%u,\"saver\":%u,\"theme\":%u,\"chime\":%u,\"rw\":%u,\"rgb\":%u,\"date_fmt\":%u,\"ice_name\":\"%s\",\"ice_phone\":\"%s\"}\n",
                        (unsigned)kBrightPctTable[s_cfg_bright_idx % 5U],
                        (unsigned)(s_cfg_night_dnd ? 1U : 0U),
                        (unsigned)s_cfg_power_saver,
@@ -2830,6 +2903,7 @@ static bool parseGadgetbridgeLine(const char* raw_line) {
                        (unsigned)(s_cfg_hourly_chime ? 1U : 0U),
                        (unsigned)(s_cfg_raise_wake ? 1U : 0U),
                        (unsigned)(s_cfg_rgb_led ? 1U : 0U),
+                       (unsigned)s_cfg_date_format,
                        s_ice_name, s_ice_phone);
         return true;
     }
@@ -3299,9 +3373,6 @@ static void toggleBlePairing() {
 }
 
 static void renderHomePage128() {
-    static const char* const kWdays[7] = { "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT" };
-    static const char* const kMonths[12] = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
-
     // 6 Vibrant Cyberpunk Home Palettes:
     // 0: CP2077   (Cyberpunk 2077 Game HUD: Pure Cyber Yellow + Crimson shadow + Kiroshi Cyan accents)
     // 1: CYAN     (Electric Vivid Cyan + Neon Magenta accents)
@@ -3312,7 +3383,7 @@ static void renderHomePage128() {
     static const uint16_t kPalPrimary[6] = { 0xFFE0, 0x07FF, 0xF81F, 0x07E0, 0xFDE0, 0xF800 };
     static const uint16_t kPalShadow[6]  = { 0x9000, 0x0115, 0x4008, 0x0280, 0x61A0, 0x4800 };
     static const uint16_t kPalAccent1[6] = { 0x07FF, 0x05DF, 0x07FF, 0x07F4, 0xFFE0, 0xFDE0 };
-    static const uint16_t kPalAccent2[6] = { 0xF81F, 0xF81F, 0xFFE0, 0xFFE0, 0x07FF, 0xFFFF };
+    static const uint16_t kPalAccent2[6] = { 0xF800, 0xF81F, 0xFFE0, 0xFFE0, 0x07FF, 0xFFFF };
 
     const uint8_t th        = s_cfg_theme_idx % 6U;
     const uint16_t cBg      = 0x0000;
@@ -3360,7 +3431,9 @@ static void renderHomePage128() {
     s_canvas.setTextColor(th == 0U ? cTime : cCyan);
     s_canvas.setCursor(7, 5);
     if(haveRtc) {
-        s_canvas.printf("%s %02u %s", kWdays[dt.wday % 7U], dt.day, kMonths[(dt.month - 1U) % 12U]);
+        char dateBuf[20];
+        formatDateString(dt, dateBuf, sizeof(dateBuf), s_cfg_date_format);
+        s_canvas.print(dateBuf);
     } else {
         s_canvas.print("NC // 2077");
     }
@@ -3541,7 +3614,7 @@ static void applyKiroshiGlitchToCanvas() {
 
 static void renderSettingsPage128() {
     static const uint16_t kPalPrimary[6] = { 0xFFE0, 0x07FF, 0xF81F, 0x07E0, 0xFDE0, 0xF800 };
-    static const uint16_t kPalAccent2[6] = { 0xF81F, 0xF81F, 0xFFE0, 0xFFE0, 0x07FF, 0xFFFF };
+    static const uint16_t kPalAccent2[6] = { 0xF800, 0xF81F, 0xFFE0, 0xFFE0, 0x07FF, 0xFFFF };
     const uint8_t th = s_cfg_theme_idx % 6U;
     const uint16_t cPrimary = kPalPrimary[th];
     const uint16_t cAccent  = kPalAccent2[th];
@@ -3586,7 +3659,7 @@ static void renderSettingsPage128() {
     snprintf(bDnd, sizeof(bDnd), s_cfg_night_dnd ? "ON" : "OFF");
     snprintf(bChm, sizeof(bChm), s_cfg_hourly_chime ? "ON" : "OFF");
 
-    const char* labels[23] = {
+    const char* labels[24] = {
         "BT MODE",
         "RGB LED",
         "RAISE WAKE",
@@ -3609,9 +3682,10 @@ static void renderSettingsPage128() {
         "SOS BEACON",
         "SET HOUR",
         "SET MIN",
-        "SET DATE"
+        "SET DATE",
+        "DATE FMT"
     };
-    const char* values[23] = {
+    const char* values[24] = {
         kBtModeLabels[s_cfg_bt_mode % 3U],
         s_cfg_rgb_led ? "ON" : "OFF",
         s_cfg_raise_wake ? "ON" : "OFF",
@@ -3634,11 +3708,12 @@ static void renderSettingsPage128() {
         "TEST",
         bHour,
         bMin,
-        bDate
+        bDate,
+        kDateFmtLabels[s_cfg_date_format % 6U]
     };
 
     uint8_t winStart = (s_settings_row >= 4U) ? (uint8_t)(s_settings_row - 3U) : 0U;
-    if(winStart > 19U) winStart = 19U;
+    if(winStart > 20U) winStart = 20U;
     for(uint8_t vis = 0; vis < 4U; vis++) {
         uint8_t r = (uint8_t)(winStart + vis);
         int ry = 22 + (int)vis * 25;
@@ -3662,7 +3737,7 @@ static void renderSettingsPage128() {
                         ((r == 15U) ? (s_power_saver_active ? COL_AMBER : COL_WHITE) :
                         ((r == 18U) ? COL_YELLOW :
                         ((r == 19U) ? COL_VIVID_RED :
-                        ((r >= 20U && r <= 22U) ? (sel ? COL_CYAN : COL_WHITE) :
+                        ((r >= 20U && r <= 23U) ? (sel ? COL_CYAN : COL_WHITE) :
                         (sel ? COL_AMBER : COL_WHITE))))))));
         int vw = (int)strlen(values[r]) * 6;
         s_canvas.setTextColor(vCol);
@@ -3671,7 +3746,7 @@ static void renderSettingsPage128() {
     }
     // Cyberpunk vertical scrollbar track (x = 123, y = 22..118)
     s_canvas.drawFastVLine(123, 22, 96, COL_GRID);
-    int thumbY = 22 + ((int)s_settings_row * 82) / 22;
+    int thumbY = 22 + ((int)s_settings_row * 82) / 23;
     s_canvas.fillRect(122, thumbY, 3, 14, cAccent);
 }
 
@@ -4481,13 +4556,53 @@ static void handleIncomingLine(const char* line, const char* source) {
         }
         return;
     }
+    if(strcmp(line, "BLE_DIAG") == 0) {
+        char mac_str[20] = "none";
+        if(s_ble_has_mac) {
+            snprintf(mac_str, sizeof(mac_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     s_ble_target_mac[0], s_ble_target_mac[1], s_ble_target_mac[2],
+                     s_ble_target_mac[3], s_ble_target_mac[4], s_ble_target_mac[5]);
+        }
+        char uid_str[20] = "none";
+        char pat_str[20] = "none";
+        lc_hex(compState.capture.uid, 8U, uid_str, sizeof(uid_str));
+        lc_hex(compState.capture.patch, 6U, pat_str, sizeof(pat_str));
+        Serial.printf("BLE_DIAG|bt_mode=%u|en=%d|conn=%d|scan=%d|doconn=%d|conning=%d|has_mac=%d|mac=%s|has_scan=%d|uid=%s|patch=%s|code=%lu|cnt=%u|status=%s\n",
+                      (unsigned)s_cfg_bt_mode, (int)s_ble_enabled, (int)s_ble_connected,
+                      (int)s_ble_scanning, (int)s_ble_do_connect, (int)s_ble_connecting,
+                      (int)s_ble_has_mac, mac_str, (int)compState.has_scan,
+                      uid_str, pat_str, (unsigned long)s_ble_unlock_code,
+                      (unsigned)s_ble_unlock_count, s_ble_status);
+        FILE* bf = fopen(BLE_BOND_PATH, "rb");
+        if(bf) {
+            char bbuf[128];
+            if(fgets(bbuf, sizeof(bbuf), bf)) {
+                size_t bl = strlen(bbuf);
+                while(bl > 0 && (bbuf[bl-1] == '\r' || bbuf[bl-1] == '\n')) bbuf[--bl] = 0;
+                Serial.printf("BLE_DIAG_FILE|%s\n", bbuf);
+            }
+            fclose(bf);
+        } else {
+            Serial.println("BLE_DIAG_FILE|NOT_FOUND");
+        }
+        return;
+    }
+    if(strncmp(line, "DATE_FMT|", 9) == 0) {
+        s_cfg_date_format = (uint8_t)(atoi(line + 9) % 6);
+        saveSettingsToSpiffs();
+        renderDisplay();
+        Serial.printf("OK|DATE_FMT=%u|label=%s\n", (unsigned)s_cfg_date_format, kDateFmtLabels[s_cfg_date_format % 6U]);
+        sendJugglucoTx("OK|DATE_FMT=%u|label=%s\n", (unsigned)s_cfg_date_format, kDateFmtLabels[s_cfg_date_format % 6U]);
+        return;
+    }
     if(strcmp(line, "STATUS") == 0 || strcmp(line, "status") == 0) {
-        sendJugglucoTx("STATUS|bt_mode=%u|bat=%u|bl=%u|dnd=%u|ps=%u|ice=%s\n",
+        sendJugglucoTx("STATUS|bt_mode=%u|bat=%u|bl=%u|dnd=%u|ps=%u|df=%u|ice=%s\n",
                        (unsigned)s_cfg_bt_mode, (unsigned)s_batt_pct,
                        (unsigned)kBrightPctTable[s_cfg_bright_idx % 5U],
                        (unsigned)(s_cfg_night_dnd ? 1U : 0U),
-                       (unsigned)s_cfg_power_saver, s_ice_name);
-        Serial.printf("STATUS|bt_mode=%u|ble_conn=%d|jg_conn=%d|jg_pkts=%u|has_scan=%d|mmol_t=%u|last_sec_ago=%lu|bat=%u|rw=%u|rgb=%u|dp=%u|nl=%u|ns=%u|as=%u|notifs=%u|asleep=%d|flash=%u|sos=%u|ps=%u|dnd=%u|hchm=%u|bl_idx=%u|bl_pct=%u\n",
+                       (unsigned)s_cfg_power_saver,
+                       (unsigned)s_cfg_date_format, s_ice_name);
+        Serial.printf("STATUS|bt_mode=%u|ble_conn=%d|jg_conn=%d|jg_pkts=%u|has_scan=%d|mmol_t=%u|last_sec_ago=%lu|bat=%u|rw=%u|rgb=%u|dp=%u|nl=%u|ns=%u|as=%u|notifs=%u|asleep=%d|flash=%u|sos=%u|ps=%u|dnd=%u|hchm=%u|bl_idx=%u|bl_pct=%u|df=%u\n",
                       (unsigned)s_cfg_bt_mode,
                       (int)s_ble_connected,
                       (int)s_juggluco_connected,
@@ -4510,7 +4625,8 @@ static void handleIncomingLine(const char* line, const char* source) {
                       (unsigned)(s_cfg_night_dnd ? 1U : 0U),
                       (unsigned)(s_cfg_hourly_chime ? 1U : 0U),
                       (unsigned)s_cfg_bright_idx,
-                      (unsigned)kBrightPctTable[s_cfg_bright_idx % 5U]);
+                      (unsigned)kBrightPctTable[s_cfg_bright_idx % 5U],
+                      (unsigned)s_cfg_date_format);
         return;
     }
     if(strncmp(line, "TEST_ALARM|", 11) == 0) {
@@ -4824,11 +4940,11 @@ void loop() {
                         s_notif_selected--;
                     } else {
                         currentPage = (ScreenPage)(((int)currentPage + PAGE_COUNT - 1) % PAGE_COUNT);
-                        if(currentPage == PAGE_SETTINGS) s_settings_row = 22U;
+                        if(currentPage == PAGE_SETTINGS) s_settings_row = 23U;
                     }
                     renderDisplay();
                 } else if(i == 1) { // DOWN
-                    if(currentPage == PAGE_SETTINGS && s_settings_row < 22U) {
+                    if(currentPage == PAGE_SETTINGS && s_settings_row < 23U) {
                         s_settings_row++;
                     } else if(currentPage == PAGE_NOTIFS && s_notif_count > 1U && (s_notif_selected + 1U) < s_notif_count) {
                         s_notif_selected++;
@@ -4910,6 +5026,8 @@ void loop() {
                             if(!readPcf8563Rtc(&dt)) dt = { 2026, 10, 17, 6, 12, 0, 0 };
                             dt.day = (uint8_t)((dt.day % 31U) + 1U);
                             writePcf8563Rtc(dt);
+                        } else if(s_settings_row == 23U) { // DATE FMT
+                            s_cfg_date_format = (uint8_t)((s_cfg_date_format + 1U) % 6U);
                         }
                         saveSettingsToSpiffs();
                         renderDisplay();
@@ -4981,6 +5099,11 @@ void loop() {
         if(s_ble_connected && s_ble_client && !s_ble_client->isConnected() && (millis() - s_ble_conn_start_ms > 3000U)) {
             s_ble_connected = false;
             s_ble_connecting = false;
+        }
+        if(s_ble_scanning && (millis() - s_ble_last_scan_ms > 6000U)) {
+            BLEScan* pScan = BLEDevice::getScan();
+            if(pScan) pScan->stop();
+            s_ble_scanning = false;
         }
         if(s_ble_do_connect) {
             s_ble_do_connect = false;

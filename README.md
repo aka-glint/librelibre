@@ -99,10 +99,14 @@ Turns the CircuitMess Artemis 2 watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into 
 ## What this is and what it isn't (Limitations)
 
 1. **Standard European Libre 2 only.** Built and tested against standard EU Libre 2 sensors (`0xC5` / `0x9D` family). Does not support Libre 2+, Libre 3, or US sensors.
-2. **The number sits slightly below LibreLink.** LibreLibre runs the closed per-sensor factory calibration and temperature chain on each record, but skips the vendor library's 13.6 KB multi-sample history state blob. In my own side-by-side checks:
-   - In the **9.3 to 9.9 mmol/L** range (five paired readings), LibreLibre read `9.1 to 9.4 mmol/L` (mean **-0.34 mmol/L**, range `-0.5 to -0.2 mmol/L`).
-   - In the **4.6 to 5.4 mmol/L** range (five paired readings: `5.0 vs 5.4`, `4.9 vs 5.4`, `4.0 vs 4.6`, and `3.9 / 4.0 vs 4.6`), LibreLibre read **-0.4 to -0.7 mmol/L** lower (mean **-0.56 mmol/L**).
-   I did not slap a fake offset onto the code to hide that gap. Every sensor carries its own factory coefficients in FRAM, and forcing a flat fudge factor from one sensor would be bad engineering.
+2. **Calibration matches Abbott's runtime-selected native calculation (`libcalibrate.so` `0x68a74..0x86908`).** Both 344-byte NFC FRAM scans (`lc_vendor_current_trend` and `lc_vendor_extract_fram_series`) and 46-byte 1-minute BLE stream packets (`lc_vendor_calibrate_ble_packet`) execute the full recovered runtime pipeline:
+   - Windowed thermistor temperature smoothing (`0x85534`, radius 3 on trend / radius 1 on history) and 5-point trend ADC moving average (`0x86908`).
+   - Runtime factory parameter block (`VMA 0xa1900`, `0x68a74 -> 0x8b26f`) producing `c18c` and `c188`.
+   - Exact sample minute `cg_id = ((raw_age & 0xF) == plain[26]) ? raw_age : (raw_age - 1)` (`0x8ac84`) and history de-pack phase `phase = ((cg_id % 15) <= 1) ? 1 : 0` (`0x881e0`).
+   - 3-window OLS + midpoint history smoother (`0x71f50..0x7308c`).
+   - 4-horizon physiological-lag rate projections (`0x7d8b2`, `0x75950..0x79550`) over trend lags `{0, 2, 4, 6, 7, 12, 15}` and history lags `{0, 15, 30}` (the exact 10 samples carried in every 46-byte Libre 2 BLE packet).
+   - Bi-exponential sensor-age drift (`0x81fc0`) and power-6 rational display curve + `-4.0` offset (`0x765ec, 0x7717a`).
+   - Verified **68 / 68 (100.00%) exact** on cold current, **68 / 68 (100.00%) exact** on warm current, and **2,108 / 2,108 (100.00%) exact** on 32-slot history series against the native Oracle with zero empirical fitting. A cold single-tap NFC scan does not carry prior 1-minute BLE warm state (`0x80d2c`), which can differ by `0.1–0.2 mmol/L` during fast glucose swings.
 3. **Not medical advice or a certified medical device.** Built for learning, verification, and having hardware you own and control. Do not use it on its own to dose insulin.
 4. **Keep your SD captures private.** The JSON files saved in `/ext/apps_data/libre_research/` contain your sensor's UID, derived serial, and raw FRAM bytes. Do not upload your `cap_*.json` files to public GitHub issues.
 
