@@ -80,14 +80,17 @@ Turns the CircuitMess Artemis 2 watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into 
   - Active-low glanceable indicator: Green (in target / charged), Amber (warning / charging), Red (urgent alarm), Blue (Libre 2 connected), Cyan (Juggluco connected).
 - **Dynamic Power Management**:
   - Dynamic CPU throttling down to **80 MHz** during screen-off sleep while keeping FreeRTOS, BLE radio, and I2C sensors alive. Wakes to **240 MHz** on button press or wrist raise.
-- **7-Page Dark Cyberpunk UI** (zero pure white `#FFFFFF` anywhere on screen for night readability, plus 10-bit LEDC PWM backlight dimming on `GPIO 33`):
-  - `Pg 1/7`: Home watchface (date, `HH:MM` RTC time, battery `%`, `mmol/L` reading, vector trend arrow, `CP2077` Kiroshi HUD theme, and toggleable `GLITCH FX` scanline/chromatic aberration).
-  - `Pg 2/7`: Detailed scan card (`mmol/L`, `mg/dL`, freshness, remaining sensor life, serial, transport badge `BLE-S` / `BLE-J` / `USB` / `FLS`).
-  - `Pg 3/7`: Zoomable 2D pixel graph (`15m`, `1h`, `3h`, `8h`, `24h`, `ALL`).
-  - `Pg 4/7`: Hardware diagnostics (`Bat: X.XX V`, `USB/CHG` status, `BT Mode`, `RGB LED`, sensor `CRC`, status, `Age/MaxLife`, `Q` flags).
-  - `Pg 5/7`: 16-hex wire UID + `patch_info`.
-  - `Pg 6/7`: Multi-mode Bluetooth status (Direct Libre 2 MAC/streaming vs Juggluco NUS GATT status vs Radio OFF).
-  - `Pg 7/7`: Persistent Settings tile (`/spiffs/settings.cfg`): `BT MODE`, `RGB LED`, `RAISE WAKE`, `TIMEOUT`, `BRIGHTNESS`, `HOME COLOR`, `GLITCH FX`, `LED <= LOW`, `LED >= HIGH`, `ALM <= LOW`, and `ALM >= HIGH`.
+- **6-Slide Cyberpunk HUD** (`10-bit` LEDC PWM backlight on `GPIO 33`, `6` selectable color themes: `CP2077`, `CYAN`, `MAGENTA`, `MATRIX`, `AMBER`, `CRIMSON`):
+  - `Slide 1 (PAGE_HOME)`: Cyberpunk watchface (formatted date in `6` selectable styles, DND crescent moon & Power Saver `[E]` indicators, battery `%`, `HH:MM` RTC clock, `mmol/L` reading, reading age/source badge `BLE-S` / `BLE-J` / `USB` / `FLS`, boxed vector trend arrow, and optional Kiroshi `GLITCH FX` scanline tear).
+  - `Slide 2 (PAGE_NOTIFS)`: Phone notification inbox (`12` stored notifications with app color accents, sender/title, 5-line word-wrapped body, `UP/DOWN` scroll, `SELECT` to dismiss) plus incoming call overlay (`SELECT` to reject call).
+  - `Slide 3 (PAGE_GRAPH)`: Zoomable 2D pixel glucose graph (`15m`, `1h`, `3h`, `8h`, `24h`, `ALL`) plus **Time-In-Range (`TIR`) Stats Card** (`% IN RANGE 3.9–10.0`, `% ABOVE 10.0`, `% BELOW 3.9`, progress bars, 24h mean glucose, and sample count).
+  - `Slide 4 (PAGE_BLE)`: Tri-mode Bluetooth management (`DIRECT` Libre 2 MAC/status/1m packet count, `JUGGLUCO` / `Bangle.js Artemis` NUS GATT connection/packet count, or `OFF`).
+  - `Slide 5 (PAGE_DIAG)`: Hardware & sensor diagnostics (`Bat: X.XX V`, `%`, `[CHG]` / `[USB]`, `BT` mode, `RGB LED`, sensor `CRC`, status, `Age/MaxLife`, history point count, and SPIFFS status).
+  - `Slide 6 (PAGE_SETTINGS)`: 24-row scrollable Settings menu (`/spiffs/settings.cfg`): `BT MODE`, `RGB LED`, `RAISE WAKE`, `DECK PULSE`, `NOTIF LIGHT`, `NOTIF SOUND`, `WARN LOW`, `WARN HIGH`, `ALARM LOW`, `ALARM HIGH`, `ALM SOUND`, `TIMEOUT`, `BRIGHTNESS`, `HOME COLOR`, `GLITCH FX`, `PWR SAVER`, `NIGHT DND`, `HOURLY CHM`, `FLASHLIGHT`, `SOS BEACON`, `SET HOUR`, `SET MIN`, `SET DATE`, and `DATE FMT`.
+- **Quick Hardware Shortcuts & Emergency Modes**:
+  - **Hold `ALT/BACK` (`>= 1.5s`)**: Toggle **Flashlight Mode** (all 6 perimeter LEDs + 100% white screen floodlight).
+  - **Hold `SELECT` (`>= 3.0s`)**: Toggle **Medical SOS Beacon + ICE Overlay** (Morse `S-O-S` optical/audio beacon + current glucose + rescue instructions + `/spiffs/ice.cfg` emergency contact).
+  - **Web Bluetooth & USB Companion (`tools/artemis_companion.html`, `tools/flipper_bridge_sync.py`)**: Browser dashboard over Web Bluetooth NUS or Web Serial for live telemetry, drag-and-drop Flipper `cap_*.json` sensor bridging (`LL2` + `LL2_BLE`), ICE contact editing, and full watch configuration.
 - **Flight-Deck LEDs (`GPIO 17, 18, 43, 44, 45, 46`) and Piezo Alarms (`GPIO 47` / `GPIO 11`)**:
   - **Normal update**: 1 subtle 18 ms blip on the flight-deck LEDs when a new value arrives.
   - **Warning (`<= 4.2` or `>= 13.0` mmol/L default)**: 3 seconds of 4 Hz flashing across all 6 flight-deck lights.

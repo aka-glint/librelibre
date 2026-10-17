@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ARTEMIS // Companion Dashboard</title>
+  <title>ARTEMIS // Companion Dashboard & Sensor Bridge</title>
   <style>
     :root {
       --bg: #090d16;
@@ -47,7 +47,7 @@
     .brand span { color: var(--magenta); }
     .badge {
       display: inline-block;
-      padding: 3px 8px;
+      padding: 4px 9px;
       border-radius: 4px;
       font-size: 0.72rem;
       font-weight: 700;
@@ -84,7 +84,7 @@
       text-transform: uppercase;
       letter-spacing: 0.8px;
     }
-    input, select {
+    input, select, textarea {
       width: 100%;
       background: #0b111e;
       border: 1px solid #2d3b55;
@@ -96,7 +96,7 @@
       outline: none;
       transition: border 0.2s;
     }
-    input:focus, select:focus { border-color: var(--cyan); }
+    input:focus, select:focus, textarea:focus { border-color: var(--cyan); }
     button {
       background: #162035;
       border: 1px solid var(--cyan);
@@ -119,6 +119,12 @@
       border-color: var(--cyan);
       box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
     }
+    button.btn-green {
+      background: var(--green);
+      color: #050b14;
+      border-color: var(--green);
+      box-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+    }
     button.btn-danger {
       border-color: var(--magenta);
       color: var(--magenta);
@@ -131,6 +137,7 @@
     }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
     .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
     .seg-btn {
       padding: 6px 2px;
@@ -143,6 +150,12 @@
       color: var(--cyan);
       background: rgba(0, 243, 255, 0.15);
       box-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+    }
+    .seg-btn.active-green {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(0, 255, 157, 0.15);
+      box-shadow: 0 0 8px rgba(0, 255, 157, 0.3);
     }
     .console-box {
       background: #060910;
@@ -160,6 +173,7 @@
     .log-tx { color: var(--green); }
     .log-rx { color: var(--cyan); }
     .log-err { color: var(--magenta); }
+    .log-info { color: #facc15; }
     .stat-pill {
       background: #0c1322;
       border: 1px solid #1e293b;
@@ -169,6 +183,34 @@
     }
     .stat-val { font-size: 0.95rem; font-weight: 700; color: #fff; }
     .stat-lbl { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+    
+    .drop-zone {
+      border: 2px dashed #2d3b55;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      background: rgba(11, 17, 30, 0.6);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+    }
+    .drop-zone.dragover {
+      border-color: var(--cyan);
+      background: rgba(0, 243, 255, 0.08);
+    }
+    .sensor-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin: 8px 0;
+      background: #070c16;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+    }
+    .meta-item { display: flex; justify-content: space-between; border-bottom: 1px solid #162035; padding: 2px 0; }
+    .meta-key { color: var(--text-muted); }
+    .meta-val { color: var(--cyan); font-weight: bold; font-family: monospace; }
   </style>
 </head>
 <body>
@@ -181,18 +223,28 @@
     </div>
   </div>
 
-  <!-- Connect Card -->
+  <!-- Connect Card (Dual Web Bluetooth + Web Serial USB) -->
   <div class="card">
-    <div class="row" style="margin-bottom:0">
-      <div class="col">
-        <button id="btnConnect" class="btn-primary" onclick="toggleConnect()">CONNECT OVER BLE</button>
-      </div>
+    <div class="card-title">Device Connection</div>
+    <div class="grid-2">
+      <button id="btnBle" class="btn-primary" onclick="toggleBleConnect()">CONNECT OVER BLE</button>
+      <button id="btnUsb" onclick="toggleUsbConnect()">CONNECT OVER USB</button>
+    </div>
+  </div>
+
+  <!-- Bluetooth Mode Selector -->
+  <div class="card">
+    <div class="card-title">Bluetooth Operating Mode</div>
+    <div class="grid-3">
+      <button class="seg-btn" id="mode0" onclick="setBtMode(0)">DIRECT BLE<br><small style="font-size:0.62rem">Libre 2 Client</small></button>
+      <button class="seg-btn" id="mode1" onclick="setBtMode(1)">JUGGLUCO<br><small style="font-size:0.62rem">Phone Server</small></button>
+      <button class="seg-btn" id="mode2" onclick="setBtMode(2)">BT OFF<br><small style="font-size:0.62rem">Max Battery</small></button>
     </div>
   </div>
 
   <!-- Telemetry Bar -->
   <div class="card" id="telemetryCard" style="display:none">
-    <div class="card-title">Live Telemetry</div>
+    <div class="card-title">Live Watch Telemetry</div>
     <div class="grid-3" style="margin-bottom: 8px;">
       <div class="stat-pill">
         <div class="stat-val" id="telBat">--</div>
@@ -207,7 +259,11 @@
         <div class="stat-lbl">Night DND</div>
       </div>
     </div>
-    <div class="grid-2">
+    <div class="grid-3">
+      <div class="stat-pill">
+        <div class="stat-val" id="telMode">--</div>
+        <div class="stat-lbl">BT Mode</div>
+      </div>
       <div class="stat-pill">
         <div class="stat-val" id="telPS">--</div>
         <div class="stat-lbl">Power Saver</div>
@@ -215,6 +271,37 @@
       <div class="stat-pill">
         <div class="stat-val" id="telICE" style="font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">--</div>
         <div class="stat-lbl">Active ICE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flipper NFC Capture Bridge & Sensor Pairing -->
+  <div class="card" style="border-color: rgba(0, 243, 255, 0.4);">
+    <div class="card-title">
+      <span>NFC / Flipper Sensor Pairing</span>
+      <span class="badge" style="background:#132338; color:var(--cyan)">Direct Auth</span>
+    </div>
+
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div style="font-weight:700; color:var(--cyan); margin-bottom:4px;">DROP FLIPPER SCAN JSON HERE</div>
+      <div style="font-size:0.75rem; color:var(--text-muted)">or tap to choose file from /ext/apps_data/libre_research/</div>
+      <input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleFileSelect(event)">
+    </div>
+
+    <!-- Sensor Preview Card (hidden until file loaded) -->
+    <div id="sensorPreview" style="display:none;">
+      <div class="sensor-meta-grid">
+        <div class="meta-item"><span class="meta-key">Serial:</span> <span class="meta-val" id="mSerial">--</span></div>
+        <div class="meta-item"><span class="meta-key">MAC:</span> <span class="meta-val" id="mMac">--</span></div>
+        <div class="meta-item"><span class="meta-key">Patch:</span> <span class="meta-val" id="mPatch">--</span></div>
+        <div class="meta-item"><span class="meta-key">Unlock Code:</span> <span class="meta-val" id="mCode">--</span></div>
+        <div class="meta-item"><span class="meta-key">FRAM Bytes:</span> <span class="meta-val" id="mFram">344 B</span></div>
+        <div class="meta-item"><span class="meta-key">Computed CRC:</span> <span class="meta-val" id="mCrc" style="color:var(--green)">--</span></div>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <div class="col">
+          <button class="btn-green" id="btnArmWatch" onclick="pushSensorToWatch()">ARM WATCH & POPULATE 8H HISTORY</button>
+        </div>
       </div>
     </div>
   </div>
@@ -349,10 +436,10 @@
     <button onclick="sendTestNotification()">Send To Watch</button>
   </div>
 
-  <!-- Serial Console -->
+  <!-- Serial / BLE Console -->
   <div class="card">
     <div class="card-title">
-      <span>BLE Terminal</span>
+      <span>Device Terminal</span>
       <button style="width:auto; padding:3px 8px; font-size:0.68rem;" onclick="clearConsole()">Clear</button>
     </div>
     <div class="console-box" id="consoleBox"></div>
@@ -363,12 +450,20 @@
     const NUS_TX_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Phone TX -> Watch RX
     const NUS_RX_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Watch TX -> Phone RX
 
+    let transportType = 'none'; // 'ble', 'usb', or 'none'
     let bleDevice = null;
     let bleServer = null;
     let txChar = null;
     let rxChar = null;
+
+    let usbPort = null;
+    let usbReader = null;
+    let usbWriter = null;
+    let usbReadLoopActive = false;
+
     let isConnected = false;
     let rxBuffer = '';
+    let parsedSensorData = null;
 
     function log(msg, type = 'rx') {
       const box = document.getElementById('consoleBox');
@@ -384,33 +479,48 @@
       document.getElementById('consoleBox').innerHTML = '';
     }
 
-    function updateConnBadge(connected) {
+    function updateConnBadge(connected, type = 'none') {
       isConnected = connected;
+      transportType = connected ? type : 'none';
       const b = document.getElementById('connStatus');
-      const btn = document.getElementById('btnConnect');
+      const btnBle = document.getElementById('btnBle');
+      const btnUsb = document.getElementById('btnUsb');
       const tel = document.getElementById('telemetryCard');
+
       if (connected) {
         b.className = 'badge badge-connected';
-        b.textContent = 'CONNECTED';
-        btn.textContent = 'DISCONNECT';
-        btn.className = 'btn-danger';
+        b.textContent = `CONNECTED (${type.toUpperCase()})`;
+        if (type === 'ble') {
+          btnBle.textContent = 'DISCONNECT BLE';
+          btnBle.className = 'btn-danger';
+          btnUsb.disabled = true;
+        } else {
+          btnUsb.textContent = 'DISCONNECT USB';
+          btnUsb.className = 'btn-danger';
+          btnBle.disabled = true;
+        }
         tel.style.display = 'block';
       } else {
         b.className = 'badge badge-disconnected';
         b.textContent = 'DISCONNECTED';
-        btn.textContent = 'CONNECT OVER BLE';
-        btn.className = 'btn-primary';
+        btnBle.textContent = 'CONNECT OVER BLE';
+        btnBle.className = 'btn-primary';
+        btnBle.disabled = false;
+        btnUsb.textContent = 'CONNECT OVER USB';
+        btnUsb.className = '';
+        btnUsb.disabled = false;
         tel.style.display = 'none';
       }
     }
 
-    async function toggleConnect() {
-      if (isConnected) {
+    // ─── BLE CONNECTION ──────────────────────────────────────
+    async function toggleBleConnect() {
+      if (isConnected && transportType === 'ble') {
         if (bleDevice && bleDevice.gatt.connected) {
           bleDevice.gatt.disconnect();
         }
         updateConnBadge(false);
-        log('Disconnected.', 'err');
+        log('BLE Disconnected.', 'err');
         return;
       }
 
@@ -430,57 +540,114 @@
           optionalServices: [NUS_SERVICE_UUID]
         });
 
-        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-
+        bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
         log(`Connecting to ${bleDevice.name || 'Artemis'}...`, 'rx');
         bleServer = await bleDevice.gatt.connect();
 
         log('Getting NUS Service...', 'rx');
         const service = await bleServer.getPrimaryService(NUS_SERVICE_UUID);
 
-        log('Getting Characteristics...', 'rx');
         txChar = await service.getCharacteristic(NUS_TX_UUID);
         rxChar = await service.getCharacteristic(NUS_RX_UUID);
 
         await rxChar.startNotifications();
         rxChar.addEventListener('characteristicvaluechanged', handleBleNotification);
 
-        updateConnBadge(true);
+        updateConnBadge(true, 'ble');
         log('Connected and synchronized over BLE NUS!', 'tx');
 
-        // Query status and config immediately
         setTimeout(queryStatus, 300);
         setTimeout(queryIce, 700);
       } catch (err) {
-        log(`Connection failed: ${err.message}`, 'err');
+        log(`BLE Connection failed: ${err.message}`, 'err');
         updateConnBadge(false);
       }
     }
 
-    function onDisconnected() {
-      log('Watch disconnected.', 'err');
+    function onBleDisconnected() {
+      log('Watch disconnected from BLE.', 'err');
       updateConnBadge(false);
     }
 
     function handleBleNotification(event) {
       const decoder = new TextDecoder();
       const chunk = decoder.decode(event.target.value);
-      rxBuffer += chunk;
+      processIncomingChunk(chunk);
+    }
 
+    // ─── USB SERIAL CONNECTION ───────────────────────────────
+    async function toggleUsbConnect() {
+      if (isConnected && transportType === 'usb') {
+        usbReadLoopActive = false;
+        if (usbReader) {
+          try { await usbReader.cancel(); } catch (e) {}
+        }
+        if (usbPort) {
+          try { await usbPort.close(); } catch (e) {}
+        }
+        updateConnBadge(false);
+        log('USB Serial Disconnected.', 'err');
+        return;
+      }
+
+      if (!navigator.serial) {
+        alert('Web Serial is not supported in this browser. Please use Chrome on Android, Linux, Mac, or Windows.');
+        return;
+      }
+
+      try {
+        log('Requesting USB Serial Port (CDC ACM 115200)...', 'rx');
+        usbPort = await navigator.serial.requestPort();
+        await usbPort.open({ baudRate: 115200 });
+
+        usbWriter = usbPort.writable.getWriter();
+        updateConnBadge(true, 'usb');
+        log('Connected to Artemis Watch over USB Serial!', 'tx');
+
+        usbReadLoopActive = true;
+        startUsbReadLoop();
+
+        setTimeout(queryStatus, 300);
+        setTimeout(queryIce, 700);
+      } catch (err) {
+        log(`USB Connection failed: ${err.message}`, 'err');
+        updateConnBadge(false);
+      }
+    }
+
+    async function startUsbReadLoop() {
+      const textDecoder = new TextDecoderStream();
+      const readableStreamClosed = usbPort.readable.pipeTo(textDecoder.writable);
+      const reader = textDecoder.readable.getReader();
+      usbReader = reader;
+
+      try {
+        while (usbReadLoopActive) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) processIncomingChunk(value);
+        }
+      } catch (err) {
+        if (usbReadLoopActive) log(`USB Read Error: ${err.message}`, 'err');
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    // ─── UNIFIED DATA PIPELINE ────────────────────────────────
+    function processIncomingChunk(chunk) {
+      rxBuffer += chunk;
       let idx;
       while ((idx = rxBuffer.indexOf('\n')) >= 0) {
         const line = rxBuffer.substring(0, idx).trim();
         rxBuffer = rxBuffer.substring(idx + 1);
-        if (line) {
-          parseWatchLine(line);
-        }
+        if (line) parseWatchLine(line);
       }
     }
 
     function parseWatchLine(line) {
       log(`RX: ${line}`, 'rx');
 
-      // Status response
       if (line.startsWith('STATUS|')) {
         const parts = line.split('|');
         for (let i = 1; i < parts.length; i++) {
@@ -505,10 +672,17 @@
           if (k === 'df') {
             document.getElementById('cfgDate').value = v;
           }
+          if (k === 'bt_mode') {
+            highlightBtMode(parseInt(v, 10));
+          }
         }
       }
 
-      // JSON responses
+      if (line.startsWith('OK|BT_MODE=')) {
+        const m = parseInt(line.substring(11), 10);
+        highlightBtMode(m);
+      }
+
       if (line.startsWith('{') && line.endsWith('}')) {
         try {
           const j = JSON.parse(line);
@@ -531,31 +705,177 @@
     }
 
     async function sendCommand(cmd) {
-      if (!txChar || !isConnected) {
+      if (!isConnected) {
         log('Error: Watch not connected.', 'err');
         return;
       }
       try {
         log(`TX: ${cmd.trim()}`, 'tx');
+        const formatted = cmd.endsWith('\n') ? cmd : cmd + '\n';
         const encoder = new TextEncoder();
-        const data = encoder.encode(cmd.endsWith('\n') ? cmd : cmd + '\n');
-        
-        // Split into chunks if > 20 bytes (standard BLE MTU)
-        const CHUNK_SIZE = 20;
-        for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-          const chunk = data.slice(i, i + CHUNK_SIZE);
-          if (txChar.writeValueWithoutResponse) {
-            await txChar.writeValueWithoutResponse(chunk);
-          } else {
-            await txChar.writeValue(chunk);
+        const data = encoder.encode(formatted);
+
+        if (transportType === 'ble') {
+          const CHUNK_SIZE = 20;
+          for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+            const chunk = data.slice(i, i + CHUNK_SIZE);
+            if (txChar.writeValueWithoutResponse) {
+              await txChar.writeValueWithoutResponse(chunk);
+            } else {
+              await txChar.writeValue(chunk);
+            }
+            await new Promise(r => setTimeout(r, 20));
           }
-          await new Promise(r => setTimeout(r, 20));
+        } else if (transportType === 'usb') {
+          // Throttled 16-byte chunks to protect ESP32-S3 64-byte CDC ACM RX FIFO
+          const CHUNK_SIZE = 16;
+          for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+            const chunk = data.slice(i, i + CHUNK_SIZE);
+            await usbWriter.write(chunk);
+            await new Promise(r => setTimeout(r, 15));
+          }
         }
       } catch (err) {
         log(`Send error: ${err.message}`, 'err');
       }
     }
 
+    // ─── SENSOR PARSER & CRC ENGINE ───────────────────────────
+    function lcIntegrityCrc(byteArray) {
+      let crc = 0xFFFF;
+      for (let i = 0; i < byteArray.length; i++) {
+        crc ^= byteArray[i];
+        for (let bit = 0; bit < 8; bit++) {
+          crc = ((crc >> 1) ^ ((crc & 1) ? 0x8408 : 0)) & 0xFFFF;
+        }
+      }
+      let reversed = 0;
+      for (let bit = 0; bit < 16; bit++) {
+        reversed = ((reversed << 1) | (crc & 1)) & 0xFFFF;
+        crc >>= 1;
+      }
+      return reversed.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    function hexToBytes(hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+      }
+      return bytes;
+    }
+
+    // Drag and Drop Zone Handling
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        parseJsonFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    function handleFileSelect(e) {
+      if (e.target.files.length > 0) {
+        parseJsonFile(e.target.files[0]);
+      }
+    }
+
+    function parseJsonFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const scan = JSON.parse(e.target.result);
+          if (!scan.uid_wire_hex || !scan.patch_info_hex || !scan.fram_hex) {
+            throw new Error('Missing essential Libre 2 fields (uid, patch, fram).');
+          }
+          parsedSensorData = scan;
+
+          const uid = scan.uid_wire_hex.toUpperCase();
+          const patch = scan.patch_info_hex.toUpperCase();
+          const fram = scan.fram_hex.toUpperCase();
+          const mac = (scan.ble_paired_mac || '00:00:00:00:00:00').replace(/:/g, '').toUpperCase();
+          const code = scan.ble_unlock_code || 42;
+          const serial = scan.serial_derived || 'Unknown';
+
+          const uidBytes = hexToBytes(uid);
+          const patchBytes = hexToBytes(patch);
+          const framBytes = hexToBytes(fram);
+          const totalBytes = new Uint8Array(uidBytes.length + patchBytes.length + framBytes.length);
+          totalBytes.set(uidBytes, 0);
+          totalBytes.set(patchBytes, uidBytes.length);
+          totalBytes.set(framBytes, uidBytes.length + patchBytes.length);
+
+          const computedCrc = lcIntegrityCrc(totalBytes);
+          parsedSensorData._computedCrc = computedCrc;
+          parsedSensorData._cleanMac = mac;
+
+          document.getElementById('mSerial').textContent = serial;
+          document.getElementById('mMac').textContent = mac.match(/.{1,2}/g).join(':');
+          document.getElementById('mPatch').textContent = patch;
+          document.getElementById('mCode').textContent = code;
+          document.getElementById('mCrc').textContent = computedCrc;
+          document.getElementById('sensorPreview').style.display = 'block';
+
+          log(`Parsed Flipper scan for sensor ${serial} (CRC: ${computedCrc})`, 'info');
+        } catch (err) {
+          alert('Invalid Flipper JSON scan: ' + err.message);
+          log('JSON Error: ' + err.message, 'err');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    async function pushSensorToWatch() {
+      if (!parsedSensorData) return;
+      if (!isConnected) {
+        alert('Please connect to the watch over BLE or USB first.');
+        return;
+      }
+
+      const uid = parsedSensorData.uid_wire_hex.toUpperCase();
+      const patch = parsedSensorData.patch_info_hex.toUpperCase();
+      const fram = parsedSensorData.fram_hex.toUpperCase();
+      const mac = parsedSensorData._cleanMac;
+      const code = parsedSensorData.ble_unlock_code || 42;
+      const crc = parsedSensorData._computedCrc;
+
+      const bleCmd = `LL2_BLE|${uid}|${patch}|${mac}|${code}|1\n`;
+      const ll2Cmd = `LL2|${uid}|${patch}|${fram}|${crc}\n`;
+
+      log('Arming Direct BLE credentials on watch...', 'info');
+      await sendCommand(bleCmd);
+      await new Promise(r => setTimeout(r, 400));
+
+      log('Streaming full 8-hour FRAM historical curve to watch...', 'info');
+      await sendCommand(ll2Cmd);
+      await new Promise(r => setTimeout(r, 600));
+
+      log('Switching watch to Direct BLE mode...', 'info');
+      await sendCommand('BT_MODE|0\n');
+      setTimeout(queryStatus, 500);
+
+      alert(`Success! Sensor ${parsedSensorData.serial_derived || ''} is armed on the watch with 8h historical curve seeded.`);
+    }
+
+    // ─── BLUETOOTH MODE ──────────────────────────────────────
+    function highlightBtMode(m) {
+      [0, 1, 2].forEach(idx => {
+        const btn = document.getElementById('mode' + idx);
+        if (btn) btn.className = (idx === m) ? 'seg-btn active-green' : 'seg-btn';
+      });
+      const lbl = ['Direct BLE', 'Juggluco', 'BT OFF'][m] || 'Unknown';
+      document.getElementById('telMode').textContent = lbl;
+    }
+
+    function setBtMode(mode) {
+      highlightBtMode(mode);
+      sendCommand(`BT_MODE|${mode}\n`);
+    }
+
+    // ─── SETTINGS HANDLERS ───────────────────────────────────
     function highlightBright(pct) {
       [10, 25, 45, 70, 100].forEach(p => {
         const btn = document.getElementById('bl' + p);
