@@ -8,9 +8,9 @@ Because the Flipper app loader checks the firmware API major version stamped in 
 
 | Firmware | File in `dist/` | Size | Target / API | SHA-256 | MD5 |
 |---|---|---|---|---|---|
-| **Official Firmware (OFW 1.5.1)** | `dist/LibreLibre-ofw.fap` (`dist/LibreLibre.fap`) | 57,736 B | Target 7, API 88.2 | `4ceb9b0c7aa0629cf704c675ca7664aa6cd9e27101d05a1627e73ea9cae6b5dd` | `0dc8fabb7a03e529ebda6b670e5b4e7b` |
-| **Unleashed (`unlshd-094`)** | `dist/LibreLibre-unleashed.fap` | 57,744 B | Target 7, API 88.19 | `e0005aae1260760898675a539b2e643b695615a9b066e6f54016fc95ddf0054c` | `65bd9ab17c3287f6c007f972f39b1960` |
-| **Momentum (`mntm-012`)** | `dist/LibreLibre-momentum.fap` | 57,744 B | Target 7, API 87.1 | `c8853fb840e1cad45f52e9e87111aad8153debf69afe026c3403c75279ac930c` | `10a4ae3c23d71912c608bd4ff53a6bf0` |
+| **Unleashed (`unlshd-094e`)** | `dist/LibreLibre-unleashed.fap` (`dist/LibreLibre.fap`) | 69,656 B | Target 7, API 88.19 | `bfd09ec07d94a6a720f9f9df1563cf6ce4b62ec781d41a6a9b0b2881d40aaf79` | `4171cb07391fc3bc0f61a66da9c8bc5c` |
+| **Official Firmware (OFW 1.5.1)** | `dist/LibreLibre-device.fap` | 69,664 B | Target 7, API 88.2 | `59888c7ac7ed1c744b5418cb55a7bb0069b2efd535d435549619f5bbe70ed4ad` | `a1c22520dd38c8fdeb57acba9b48e203` |
+| **Momentum (`mntm-012`)** | `dist/LibreLibre-momentum.fap` | 69,648 B | Target 7, API 87.1 | `e74494da64028fa94772d3d9ec6d0939c7eece8b2ea65a72bb50b417146c2718` | `b945b486175117f21001c3ae451efdc4` |
 
 All three builds pass:
 - `STRICT_FAP_IMPORT_CHECK=1` against the target SDK's `api_symbols.csv` (all 70 imported symbols verified).

@@ -115,6 +115,7 @@ Turns the CircuitMess Artemis 2 watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into 
 
 ## Documentation index
 
+- [CircuitMess Artemis Watch full feature & companion guide (`docs/ARTEMIS-WATCH.md`)](docs/ARTEMIS-WATCH.md)
 - [Bluetooth streaming and NFC capture guide (`docs/BLE-AND-NFC.md`)](docs/BLE-AND-NFC.md)
 - [User guide and troubleshooting (`docs/USER-GUIDE.md`)](docs/USER-GUIDE.md)
 - [How the math works and where the limits are (`docs/LIMITATIONS.md`)](docs/LIMITATIONS.md)

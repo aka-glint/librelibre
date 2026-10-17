@@ -17,12 +17,12 @@ The app is not locked to a specific sensor. It reads the factory calibration fie
 
 Each Flipper firmware line has its own API version number, and the Flipper refuses to open a `.fap` built for a different API major. Grab the file from `dist/` that matches your Flipper:
 
-- **Official / Stock Firmware (OFW 1.5.1, API 88.2)**: `dist/LibreLibre-ofw.fap` (also saved as `dist/LibreLibre.fap`)
-  SHA-256: `4ceb9b0c7aa0629cf704c675ca7664aa6cd9e27101d05a1627e73ea9cae6b5dd`
-- **Unleashed (`unlshd-094`, API 88.19)**: `dist/LibreLibre-unleashed.fap`
-  SHA-256: `e0005aae1260760898675a539b2e643b695615a9b066e6f54016fc95ddf0054c`
+- **Unleashed (`unlshd-094e`, API 88.19)**: `dist/LibreLibre-unleashed.fap` (also saved as `dist/LibreLibre.fap`)
+  SHA-256: `bfd09ec07d94a6a720f9f9df1563cf6ce4b62ec781d41a6a9b0b2881d40aaf79` (MD5: `4171cb07391fc3bc0f61a66da9c8bc5c`)
+- **Official / Stock Firmware (OFW 1.5.1, API 88.2)**: `dist/LibreLibre-device.fap`
+  SHA-256: `59888c7ac7ed1c744b5418cb55a7bb0069b2efd535d435549619f5bbe70ed4ad` (MD5: `a1c22520dd38c8fdeb57acba9b48e203`)
 - **Momentum (`mntm-012`, API 87.1)**: `dist/LibreLibre-momentum.fap`
-  SHA-256: `c8853fb840e1cad45f52e9e87111aad8153debf69afe026c3403c75279ac930c`
+  SHA-256: `e74494da64028fa94772d3d9ec6d0939c7eece8b2ea65a72bb50b417146c2718` (MD5: `b945b486175117f21001c3ae451efdc4`)
 
 How to put it on the Flipper:
 
@@ -72,9 +72,9 @@ That means the app refused to show a number for that scan. There are two common 
 
 Your Flipper firmware API version does not match the `.fap` file you copied. Check which firmware you are running (Official, Unleashed, or Momentum) and grab the matching `.fap` from `dist/`, or run `ufbt` against your firmware version (see [BUILD-AND-TEST.md](BUILD-AND-TEST.md)).
 
-### The reading is 0.3 to 0.4 mmol/L different from LibreLink
+### How close is the reading to LibreLink?
 
-See [LIMITATIONS.md](LIMITATIONS.md). LibreLibre runs the closed per-sensor factory and temperature math on the newest trend record, without the vendor library's multi-sample history state filter. Do not add a manual offset in your head or use the app to dose insulin.
+See [LIMITATIONS.md](LIMITATIONS.md). LibreLibre runs the complete instruction-recovered native runtime calibration pipeline (`libcalibrate.so` `0x68a74..0x86908`, verified **68 / 68 (100.00%)** on cold current, **68 / 68 (100.00%)** on warm current, and **2,108 / 2,108 (100.00%)** on 32-slot history series). Because a phone running LibreLink receives 1-minute BLE packets continuously (keeping the warm temporal blend `0x80d2c` active), a single cold NFC tap can still differ by `0.1 to 0.2 mmol/L` during fast glucose changes. Do not use the app on its own to dose insulin.
 
 ## Keeping your capture files private
 

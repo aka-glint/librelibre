@@ -53,7 +53,10 @@ The sensor replies with its 6-byte Bluetooth MAC (`ble_paired_mac`), which the F
 
 ### Step 2: Send the capture and bond to the ESP32
 
-You can pass the capture to the ESP32 over GPIO UART (`115200 8N1` on Flipper Pin 13 `TX` / Pin 14 `RX`) or over USB Serial (`115200`):
+You can pass the capture and BLE bond to the ESP32 in three ways:
+- **Web Bluetooth / Web Serial Companion Dashboard (`esp32/circuitmess-artemis/tools/artemis_companion.html`)**: Open the HTML dashboard in Chrome/Edge, connect to the Artemis Watch over Web Bluetooth (`Bangle.js Artemis` NUS) or Web Serial (`115200`), and drag-and-drop your `cap_<UID>_<tick>.json` file into the **Libre 2 Sensor Bridge** card. It computes the 344-byte FRAM CRC16 (`lcIntegrityCrc`) and pushes both `LL2|` and `LL2_BLE|` to the watch automatically.
+- **Automated Python USB Bridge (`esp32/circuitmess-artemis/tools/flipper_bridge_sync.py` & `upload_flipper_to_watch.py`)**: Automatically detects the attached Flipper Zero, pulls the newest `cap_*.json` from `/ext/apps_data/libre_research/`, computes the CRC16, and pushes `LL2_BLE|` and `LL2|` to the Artemis Watch over USB.
+- **Direct GPIO UART (`115200 8N1` on Flipper Pin 13 `TX` / Pin 14 `RX`) or manual USB Serial (`115200`)**:
 
 1. **Full FRAM frame (`LL2|`)**: Seeds the sensor's factory calibration (`i1..i6`), current reading, and 48-point (`8h`) history graph into flash (`/spiffs/last_frame.txt` and `/spiffs/scans.csv`):
    ```text
@@ -63,6 +66,8 @@ You can pass the capture to the ESP32 over GPIO UART (`115200 8N1` on Flipper Pi
    ```text
    LL2_BLE|<16-hex-uid>|<12-hex-patch>|<12-hex-mac>|<unlock_code>|<unlock_count>
    ```
+
+When each 46-byte encrypted `0xF002` notification arrives every 60 seconds, `ll_libre2_evaluate_ble_packet()` in `libre2_ble.c` decrypts the 46 bytes, verifies the CRC16, unpacks all **7 trend samples** (`lags {0, 2, 4, 6, 7, 12, 15}`) and **3 history samples** (`lags {0, 15, 30}`), and calls `lc_vendor_calibrate_ble_packet()` in `vendor_chain.c` to run the full native runtime calibration pipeline (`0x68a74..0x86908`).
 
 NOTE: On ESP32-S3 boards using the built-in USB-Serial/JTAG controller (`circuitmess-artemis`), the hardware RX FIFO is 64 bytes. When sending a 727-byte `LL2|` line over USB from a script, send it in 16-byte chunks with 15 ms spacing so the hardware FIFO never drops characters.
 
