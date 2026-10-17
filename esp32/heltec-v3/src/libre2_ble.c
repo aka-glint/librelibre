@@ -258,18 +258,23 @@ bool ll_libre2_evaluate_ble_packet(
     }
 
     if(cal_cfg && cal_cfg->i2 >= 1 && cal_cfg->i2 <= 1023 && !out_frame->trend_has_error[0]) {
-        LcVendorRecord rec;
-        memset(&rec, 0, sizeof(rec));
-        rec.id = wear_min;
-        rec.adc = out_frame->trend_raw_glucose[0];
-        rec.tcode = out_frame->trend_raw_temp[0];
-        rec.adjust = out_frame->trend_temp_adj[0];
-        rec.quality = 0U;
-
-        LcVendorReal v = 0.0, T = 0.0;
-        if(lc_vendor_correct_record(&rec, cal_cfg, &v, &T) == LcVendorChainOk && isfinite((double)v) && v > 0.0 && v <= 9999.0) {
+        uint32_t mg = 0U, mmol = 0U;
+        if(lc_vendor_calibrate_ble_packet(
+               cal_cfg,
+               wear_min,
+               out_frame->trend_raw_glucose,
+               out_frame->trend_raw_temp,
+               out_frame->trend_temp_adj,
+               out_frame->trend_has_error,
+               out_frame->hist_raw_glucose,
+               out_frame->hist_raw_temp,
+               out_frame->hist_temp_adj,
+               out_frame->hist_has_error,
+               &mg,
+               &mmol) == LcVendorChainOk && mmol > 0U) {
             out_frame->calibrated.available = true;
-            lc_vendor_round(v, &out_frame->calibrated.mg_dl, &out_frame->calibrated.mmol_tenths);
+            out_frame->calibrated.mg_dl = mg;
+            out_frame->calibrated.mmol_tenths = mmol;
             out_frame->calibrated.cfg_i2 = cal_cfg->i2;
             out_frame->calibrated.cfg_i3 = cal_cfg->i3;
             out_frame->calibrated.cfg_i4 = cal_cfg->i4;

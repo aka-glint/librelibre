@@ -13,6 +13,8 @@ __pycache__/
 # --- Build output ---
 .ufbt-unleashed/build/
 dist/debug/
+.pio/
+**/.pio/
 
 # --- PRIVATE: real sensor captures (UIDs + FRAM payloads) NEVER commit ---
 captures/

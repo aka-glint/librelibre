@@ -65,21 +65,34 @@ Full walkthrough of both setups, the BLE crypto, and the four ESP32 Bluedroid li
 
 ## 3. CircuitMess Artemis Watch (`esp32/circuitmess-artemis`)
 
-Turns the CircuitMess Artemis watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into a standalone wrist receiver and alarm watch:
+Turns the CircuitMess Artemis 2 watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into a standalone wrist receiver and alarm watch:
 
+- **Dual-Mode Bluetooth Engine**:
+  - **Direct Libre 2 BLE Client (`0xFDE3`)**: Connects directly to FreeStyle Libre 2 sensors, authenticating with cryptographic handshake and streaming 1-minute calibrated glucose readings independently without a phone.
+  - **Juggluco / Phone GATT Server Companion**: Advertises as `Artemis Watch` exposing the Nordic UART Service (`6E400001-B5A3-F393-E0A9-E50E24DCCA9E`). Receives live glucose notifications (`GB({"t":"notify",...})`) and syncs RTC clock (`setTime(...)`) directly from the Juggluco or Gadgetbridge Android app.
+  - **Bluetooth Radio OFF**: Completely shuts down the 2.4 GHz radio when not needed to maximize battery life.
+  - Switchable at any time via **Settings -> BT MODE** or quick-toggle on `Page 6/7 (BLE)`.
+- **Battery Fuel Gauge & Charge Detection**:
+  - Calibrated ADC with 2.5V precision voltage reference (`GPIO 4`) sampling the 1:4 battery divider (`GPIO 5`).
+  - Hardware USB 5V detection (`GPIO 42`) and active-low charge controller status (`GPIO 7`).
+  - Displays live percentage (`XX%` / `+XX%`) on Home HUD, header bar, and `Page 4/7 (Diagnostics)`.
+- **Glanceable Onboard RGB Status LED (`GPIO 14, 12, 13`)**:
+  - Active-low glanceable indicator: Green (in target / charged), Amber (warning / charging), Red (urgent alarm), Blue (Libre 2 connected), Cyan (Juggluco connected).
+- **Dynamic Power Management**:
+  - Dynamic CPU throttling down to **80 MHz** during screen-off sleep while keeping FreeRTOS, BLE radio, and I2C sensors alive. Wakes to **240 MHz** on button press or wrist raise.
 - **7-Page Dark Cyberpunk UI** (zero pure white `#FFFFFF` anywhere on screen for night readability, plus 10-bit LEDC PWM backlight dimming on `GPIO 33`):
-  - `Pg 1/7`: Home watchface (date, `HH:MM` RTC time, `mmol/L` reading, vector trend arrow, `CP2077` Kiroshi HUD theme, and toggleable `GLITCH FX` scanline/chromatic aberration).
-  - `Pg 2/7`: Detailed scan card (`mmol/L`, `mg/dL`, freshness, remaining sensor life, serial, transport badge `BLE-S` / `USB` / `FLS`).
+  - `Pg 1/7`: Home watchface (date, `HH:MM` RTC time, battery `%`, `mmol/L` reading, vector trend arrow, `CP2077` Kiroshi HUD theme, and toggleable `GLITCH FX` scanline/chromatic aberration).
+  - `Pg 2/7`: Detailed scan card (`mmol/L`, `mg/dL`, freshness, remaining sensor life, serial, transport badge `BLE-S` / `BLE-J` / `USB` / `FLS`).
   - `Pg 3/7`: Zoomable 2D pixel graph (`15m`, `1h`, `3h`, `8h`, `24h`, `ALL`).
-  - `Pg 4/7`: Sensor diagnostics (`CRC`, status, `Age/MaxLife`, `Q` flags).
+  - `Pg 4/7`: Hardware diagnostics (`Bat: X.XX V`, `USB/CHG` status, `BT Mode`, `RGB LED`, sensor `CRC`, status, `Age/MaxLife`, `Q` flags).
   - `Pg 5/7`: 16-hex wire UID + `patch_info`.
-  - `Pg 6/7`: Direct BLE streaming status, target MAC, and packet counter.
-  - `Pg 7/7`: Persistent Settings tile (`/spiffs/settings.cfg`): `RAISE WAKE`, `TIMEOUT`, `BRIGHTNESS`, `HOME COLOR` (`CP2077`, `CYAN`, `MAGENTA`, `MATRIX`, `AMBER`, `CRIMSON`), `GLITCH FX` (`ON`/`OFF`), `LED <= LOW` (default `4.2`), `LED >= HIGH` (default `13.0`), `ALM <= LOW` (default `3.6`), and `ALM >= HIGH` (default `16.0`).
+  - `Pg 6/7`: Multi-mode Bluetooth status (Direct Libre 2 MAC/streaming vs Juggluco NUS GATT status vs Radio OFF).
+  - `Pg 7/7`: Persistent Settings tile (`/spiffs/settings.cfg`): `BT MODE`, `RGB LED`, `RAISE WAKE`, `TIMEOUT`, `BRIGHTNESS`, `HOME COLOR`, `GLITCH FX`, `LED <= LOW`, `LED >= HIGH`, `ALM <= LOW`, and `ALM >= HIGH`.
 - **Flight-Deck LEDs (`GPIO 17, 18, 43, 44, 45, 46`) and Piezo Alarms (`GPIO 47` / `GPIO 11`)**:
   - **Normal update**: 1 subtle 18 ms blip on the flight-deck LEDs when a new value arrives.
   - **Warning (`<= 4.2` or `>= 13.0` mmol/L default)**: 3 seconds of 4 Hz flashing across all 6 flight-deck lights.
   - **Urgent (`<= 3.6` or `>= 16.0` mmol/L default)**: Wakes the screen, displays the `!! URGENT LOW !!` / `!! URGENT HIGH !!` modal, flashes all 6 flight-deck lights, and sounds the two-tone piezo alarm until acknowledged by pressing any button (which pauses audio for 15 minutes while keeping LED alerts active).
-- **Persistence across reboots**: Every 1-minute `BLE-S` reading is appended to `/spiffs/scans.csv` and the monotonic `unlock_count` is saved to `/spiffs/ble_bond.txt`. On reboot, the watch restores the newest reading from `/spiffs/scans.csv` and automatically reconnects on the next 60s sensor wake.
+- **Persistence across reboots**: Every 1-minute `BLE-S` or `BLE-J` reading is appended to `/spiffs/scans.csv` and the monotonic `unlock_count` is saved to `/spiffs/ble_bond.txt`. On reboot, the watch restores the newest reading from `/spiffs/scans.csv` and automatically reconnects on the next 60s sensor wake.
 
 ---
 
