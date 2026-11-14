@@ -2157,12 +2157,15 @@ static volatile uint8_t s_ble_last_disc_reason = 0;
 static TrendDir s_last_juggluco_trend = TREND_UNKNOWN;
 
 static void sendJugglucoTx(const char* fmt, ...) {
-    if(!s_juggluco_connected || !s_pTxCharacteristic) return;
-    char buf[128];
+    char buf[512];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
+    int written = vsnprintf(buf, sizeof(buf) - 2U, fmt, args);
     va_end(args);
+    if(written < 0 || (size_t)written >= sizeof(buf) - 2U) {
+        Serial.println("ERR|REPLY_TOO_LONG");
+        return;
+    }
 
     // Gadgetbridge Bangle.js driver splits on '\n' and slices line up to (p - 1),
     // strictly assuming each line terminates in CRLF ("\r\n"). If '\r' is omitted,
@@ -2177,9 +2180,16 @@ static void sendJugglucoTx(const char* fmt, ...) {
         buf[len++] = '\n';
         buf[len] = '\0';
     }
-    s_pTxCharacteristic->setValue((uint8_t*)buf, len);
-    s_pTxCharacteristic->notify();
-    Serial.printf("GB_TX|%s", buf);
+    Serial.print(buf); // Identical, newline-delimited replies over USB and BLE.
+    if(s_juggluco_connected && s_pTxCharacteristic) {
+        // 20 bytes works even with the minimum ATT MTU of 23.
+        for(size_t offset = 0; offset < len; offset += 20U) {
+            size_t count = (len - offset < 20U) ? len - offset : 20U;
+            s_pTxCharacteristic->setValue((uint8_t*)buf + offset, count);
+            s_pTxCharacteristic->notify();
+            delay(15);
+        }
+    }
 }
 
 static float parseGlucoseValue(const char* str, bool* out_is_mmol, int* out_priority = nullptr) {
@@ -2916,7 +2926,7 @@ static bool parseGadgetbridgeLine(const char* raw_line) {
             uint8_t am = (uint8_t)atoi(m_str);
             char alarmBuf[24];
             snprintf(alarmBuf, sizeof(alarmBuf), "Alarm: %02u:%02u", ah, am);
-            showPopup("ALARM SYNCED", alarmBuf, "From Gadgetbridge", "OK", 3000U);
+            showPopup("ALARM RECEIVED", alarmBuf, "Not scheduled", "OK", 3000U);
             Serial.printf("GB_ALARM_SYNC|h=%u|m=%u\n", ah, am);
         }
         return true;
@@ -3542,7 +3552,11 @@ static void renderHomePage128() {
         s_canvas.print("MMOL/L");
 
         // Reading age & link status indicator
-        if(s_cfg_bt_mode == BLE_MODE_JUGGLUCO && !s_juggluco_connected) {
+        if(strcmp(lastTransport, "FLS") == 0) {
+            s_canvas.setTextColor(cAmber);
+            s_canvas.setCursor(48, 108);
+            s_canvas.print("SAVED?");
+        } else if(s_cfg_bt_mode == BLE_MODE_JUGGLUCO && !s_juggluco_connected) {
             s_canvas.setTextColor(cAmber);
             s_canvas.setCursor(48, 108);
             s_canvas.print("NO BT");
@@ -4242,7 +4256,7 @@ static void notifyResultSummary(const char* source) {
                  (unsigned)s_history.count,
                  saveStatus);
     }
-    Serial.print(reply);
+    sendJugglucoTx("%s", reply);
 }
 
 static void processCompletedScan(const uint8_t uid[8], const uint8_t patch[6], const uint8_t fram[LC_FRAM_SIZE], const char* source) {
@@ -4304,25 +4318,55 @@ static void handleIncomingLine(const char* line, const char* source) {
     }
     if(strncmp(line, "LL2_BLE|", 8) == 0) {
         char buf[96];
+        if(strlen(line + 8) >= sizeof(buf)) {
+            sendJugglucoTx("ERR|LL2_BLE_TOO_LONG\n");
+            return;
+        }
         snprintf(buf, sizeof(buf), "%s", line + 8);
         char* t_uid = strtok(buf, "|\r\n");
         char* t_pat = strtok(NULL, "|\r\n");
         char* t_mac = strtok(NULL, "|\r\n");
         char* t_cod = strtok(NULL, "|\r\n");
         char* t_cnt = strtok(NULL, "|\r\n");
-        if(t_uid && t_pat && strlen(t_pat) == 12U && t_mac && strlen(t_mac) == 12U) {
-            for(size_t i = 0; i < 6U; i++) {
-                char p1 = t_pat[i * 2U], p2 = t_pat[i * 2U + 1U];
-                int pv1 = (p1 >= '0' && p1 <= '9') ? (p1 - '0') : (p1 >= 'A' && p1 <= 'F') ? (p1 - 'A' + 10) : (p1 >= 'a' && p1 <= 'f') ? (p1 - 'a' + 10) : 0;
-                int pv2 = (p2 >= '0' && p2 <= '9') ? (p2 - '0') : (p2 >= 'A' && p2 <= 'F') ? (p2 - 'A' + 10) : (p2 >= 'a' && p2 <= 'f') ? (p2 - 'a' + 10) : 0;
-                compState.capture.patch[i] = (uint8_t)((pv1 << 4) | pv2);
-                compState.patch[i] = compState.capture.patch[i];
-
-                char c1 = t_mac[i * 2U], c2 = t_mac[i * 2U + 1U];
-                int v1 = (c1 >= '0' && c1 <= '9') ? (c1 - '0') : (c1 >= 'A' && c1 <= 'F') ? (c1 - 'A' + 10) : (c1 >= 'a' && c1 <= 'f') ? (c1 - 'a' + 10) : 0;
-                int v2 = (c2 >= '0' && c2 <= '9') ? (c2 - '0') : (c2 >= 'A' && c2 <= 'F') ? (c2 - 'A' + 10) : (c2 >= 'a' && c2 <= 'f') ? (c2 - 'a' + 10) : 0;
-                s_ble_target_mac[i] = (uint8_t)((v1 << 4) | v2);
+        uint8_t parsedUid[8], parsedPatch[6], parsedMac[6];
+        auto hexBytes = [](const char* text, uint8_t* out, size_t count) {
+            if(!text || strlen(text) != count * 2U) return false;
+            for(size_t i = 0; i < count; ++i) {
+                unsigned value = 0;
+                for(size_t j = 0; j < 2; ++j) {
+                    char c = text[i * 2U + j];
+                    int n = c >= '0' && c <= '9' ? c - '0' :
+                            c >= 'a' && c <= 'f' ? c - 'a' + 10 :
+                            c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+                    if(n < 0) return false;
+                    value = value * 16U + (unsigned)n;
+                }
+                out[i] = (uint8_t)value;
             }
+            return true;
+        };
+        auto decimal = [](const char* text, uint32_t limit) {
+            if(!text || !*text) return false;
+            uint32_t value = 0;
+            for(; *text; ++text) {
+                if(*text < '0' || *text > '9') return false;
+                unsigned digit = (unsigned)(*text - '0');
+                if(value > (limit - digit) / 10U) return false;
+                value = value * 10U + digit;
+            }
+            return true;
+        };
+        if(!hexBytes(t_uid, parsedUid, 8) || !hexBytes(t_pat, parsedPatch, 6) ||
+           !hexBytes(t_mac, parsedMac, 6) || !decimal(t_cod, UINT32_MAX) ||
+           !decimal(t_cnt, UINT16_MAX) || strtok(NULL, "|\r\n") ||
+           !compState.has_scan || compState.integrity.status != LcIntegrityPass ||
+           memcmp(parsedUid, compState.capture.uid, 8) != 0 ||
+           memcmp(parsedPatch, compState.capture.patch, 6) != 0) {
+            sendJugglucoTx("ERR|LL2_BLE_INVALID_OR_MISMATCHED_CAPTURE\n");
+            return;
+        }
+        {
+            memcpy(s_ble_target_mac, parsedMac, sizeof(parsedMac));
             s_ble_has_mac = true;
             s_ble_unlock_code = t_cod ? (uint32_t)strtoul(t_cod, NULL, 10) : 42U;
             s_ble_unlock_count = t_cnt ? (uint16_t)strtoul(t_cnt, NULL, 10) : 6U;
@@ -4335,7 +4379,7 @@ static void handleIncomingLine(const char* line, const char* source) {
                      s_ble_target_mac[3], s_ble_target_mac[4], s_ble_target_mac[5]);
             saveBleBondToSpiffs();
             renderDisplay();
-            Serial.println("OK|LL2_BLE_ARMED");
+            sendJugglucoTx("OK|LL2_BLE_ARMED\n");
         }
         return;
     }
@@ -4367,6 +4411,7 @@ static void handleIncomingLine(const char* line, const char* source) {
     }
     if(strncmp(line, "BT_MODE|", 8) == 0) {
         s_cfg_bt_mode = (uint8_t)(atoi(line + 8) % 3);
+        sendJugglucoTx("OK|BT_MODE=%u\n", (unsigned)s_cfg_bt_mode);
         applyBtModeChange();
         saveSettingsToSpiffs();
         renderDisplay();
@@ -4645,7 +4690,7 @@ static void handleIncomingLine(const char* line, const char* source) {
     if(st == LlBridgeOk) {
         processCompletedScan(uid, patch, fram, source);
     } else if(st != LlBridgeBadPrefix) {
-        Serial.printf("ERR|src=%s|code=%d\n", source, (int)st);
+        sendJugglucoTx("ERR|src=%s|code=%d\n", source, (int)st);
     }
 }
 

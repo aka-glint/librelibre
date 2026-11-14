@@ -1,5 +1,9 @@
 # LibreLibre
 
+**LibreLibre is a working, experimental offline reader and companion for standard European FreeStyle Libre 2 sensors.** Supported ESP32 devices receive readings directly over Bluetooth after initial NFC setup, without a phone or cloud connection during direct operation.
+
+This is independently developed, uncertified software. Readings and alerts may be delayed, unavailable, or incorrect. Do not rely on it alone for treatment decisions or emergency alerts.
+
 Read a standard European FreeStyle Libre 2 sensor over NFC with a Flipper Zero, or stream live 1-minute Bluetooth readings and alarms straight to an ESP32-S3 watch or display. No phone, no internet connection, no account, and no cloud server in the loop.
 
 I built this because I wanted an independent, offline reader and wrist companion I could inspect myself, use when my phone is dead or out of reach, and run without trusting a black box.
@@ -11,7 +15,7 @@ All four targets share the same C decryption, 3-section CRC16, per-sensor factor
 | Target | Directory | Hardware | What it does |
 |---|---|---|---|
 | **Flipper Zero** | Root (`/`) + [`dist/`](dist/) | Flipper Zero (OFW, Unleashed, Momentum) | 17-command read-only NFC scan, optional Step-18 (`02 A1 07 1E`) BLE pairing (`Up` key), 2D glucose graph (`15m`/`1h`/`3h`/`8h`), SD JSON capture save, and USB/UART bridge output. |
-| **CircuitMess Artemis Watch** | [`esp32/circuitmess-artemis/`](esp32/circuitmess-artemis/) | ESP32-S3-MINI-1, 128x128 ST7735S, LSM6DS3TR-C IMU, PCF8563 RTC, 6x Flight-Deck LEDs, Piezo Buzzer | 7-page dark-mode cyberpunk watch (`CP2077` HUD + Kiroshi `GLITCH FX` toggle), direct 1-minute Libre 2 BLE streaming (`0xFDE3`), flight-deck LED alerts (`18 ms` update blip, `3s` flash at `<=4.2` or `>=13.0`), latching piezo audible alarms (`<=3.6` or `>=16.0` with 15-minute snooze on button ack), raise-to-wake, and SPIFFS persistence. |
+| **CircuitMess Artemis Watch** | [`esp32/circuitmess-artemis/`](esp32/circuitmess-artemis/) | ESP32-S3-MINI-1, 128x128 ST7735S, LSM6DS3TR-C IMU, PCF8563 RTC, 6x Flight-Deck LEDs, Piezo Buzzer | 6-page dark-mode cyberpunk watch (`CP2077` HUD + Kiroshi `GLITCH FX` toggle), direct 1-minute Libre 2 BLE streaming (`0xFDE3`), flight-deck LED alerts (`18 ms` update blip, `3s` flash at `<=4.2` or `>=13.0`), latching piezo audible alarms (`<=3.6` or `>=16.0` with 15-minute snooze on button ack), raise-to-wake, and SPIFFS persistence. |
 | **Waveshare S3 Touch-LCD-2** | [`esp32/waveshare-s3-lcd2/`](esp32/waveshare-s3-lcd2/) | ESP32-S3, 240x320 ST7789T3 IPS, CST816D capacitive touch, microSD | 5-page dark HUD, touch + button controls, zoomable 24h graph, direct 1-minute Libre 2 BLE streaming (`0xFDE3`), and verified microSD history/capture storage. |
 | **Heltec WiFi LoRa 32 V3** | [`esp32/heltec-v3/`](esp32/heltec-v3/) | ESP32-S3, 128x64 SSD1306 OLED | 100% air-gapped offline companion display and graph node (Bluetooth stack stripped at compile time). Receives `LL2|` frames over GPIO UART or USB Serial. |
 
@@ -57,7 +61,7 @@ A Libre 2 sensor streams a 46-byte encrypted reading over Bluetooth Low Energy (
 You can feed NFC scans into the ESP32 targets in two ways:
 
 1. **Capture NFC on the Flipper Zero and bridge to ESP32**: Toggle `BLE Pair: ON` (`Up` key) on the Flipper, scan the sensor, and pass the `LL2|<uid>|<patch>|<fram>|<crc16>` and `LL2_BLE|<uid>|<patch>|<mac>|<code>|<cnt>` lines to the ESP32 over GPIO UART or USB Serial.
-2. **Wire an ISO15693 NFC reader (`PN5180`, `ST25R3916`, or `TRF7970A`) directly to the ESP32**: All three ESP32 targets include `src/nfc_io.c`, which implements the full 17+1 command ISO15693 state machine natively on ESP32 through a single `LlNfcTransceiveFn` callback.
+2. **Wire an ISO15693 NFC reader (`PN5180`, `ST25R3916`, or `TRF7970A`) directly to the ESP32**: All three ESP32 targets include `src/nfc_io.c`, which implements the full 17+1 command ISO15693 state machine natively on ESP32 through a single `LlNfcTransceiveFn` callback. A compatible hardware driver implementing that callback still needs integration; wiring a chip alone is not sufficient.
 
 Full walkthrough of both setups, the BLE crypto, and the four ESP32 Bluedroid link-layer traps we solved: **[docs/BLE-AND-NFC.md](docs/BLE-AND-NFC.md)**.
 
@@ -71,11 +75,11 @@ Turns the CircuitMess Artemis 2 watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into 
   - **Direct Libre 2 BLE Client (`0xFDE3`)**: Connects directly to FreeStyle Libre 2 sensors, authenticating with cryptographic handshake and streaming 1-minute calibrated glucose readings independently without a phone.
   - **Juggluco / Phone GATT Server Companion**: Advertises as `Artemis Watch` exposing the Nordic UART Service (`6E400001-B5A3-F393-E0A9-E50E24DCCA9E`). Receives live glucose notifications (`GB({"t":"notify",...})`) and syncs RTC clock (`setTime(...)`) directly from the Juggluco or Gadgetbridge Android app.
   - **Bluetooth Radio OFF**: Completely shuts down the 2.4 GHz radio when not needed to maximize battery life.
-  - Switchable at any time via **Settings -> BT MODE** or quick-toggle on `Page 6/7 (BLE)`.
+  - Switchable at any time via **Settings -> BT MODE** or quick-toggle on `Slide 4 (BLE)`.
 - **Battery Fuel Gauge & Charge Detection**:
   - Calibrated ADC with 2.5V precision voltage reference (`GPIO 4`) sampling the 1:4 battery divider (`GPIO 5`).
   - Hardware USB 5V detection (`GPIO 42`) and active-low charge controller status (`GPIO 7`).
-  - Displays live percentage (`XX%` / `+XX%`) on Home HUD, header bar, and `Page 4/7 (Diagnostics)`.
+  - Displays live percentage (`XX%` / `+XX%`) on Home HUD, header bar, and `Slide 5 (Diagnostics)`.
 - **Glanceable Onboard RGB Status LED (`GPIO 14, 12, 13`)**:
   - Active-low glanceable indicator: Green (in target / charged), Amber (warning / charging), Red (urgent alarm), Blue (Libre 2 connected), Cyan (Juggluco connected).
 - **Dynamic Power Management**:
@@ -89,8 +93,8 @@ Turns the CircuitMess Artemis 2 watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into 
   - `Slide 6 (PAGE_SETTINGS)`: 24-row scrollable Settings menu (`/spiffs/settings.cfg`): `BT MODE`, `RGB LED`, `RAISE WAKE`, `DECK PULSE`, `NOTIF LIGHT`, `NOTIF SOUND`, `WARN LOW`, `WARN HIGH`, `ALARM LOW`, `ALARM HIGH`, `ALM SOUND`, `TIMEOUT`, `BRIGHTNESS`, `HOME COLOR`, `GLITCH FX`, `PWR SAVER`, `NIGHT DND`, `HOURLY CHM`, `FLASHLIGHT`, `SOS BEACON`, `SET HOUR`, `SET MIN`, `SET DATE`, and `DATE FMT`.
 - **Quick Hardware Shortcuts & Emergency Modes**:
   - **Hold `ALT/BACK` (`>= 1.5s`)**: Toggle **Flashlight Mode** (all 6 perimeter LEDs + 100% white screen floodlight).
-  - **Hold `SELECT` (`>= 3.0s`)**: Toggle **Medical SOS Beacon + ICE Overlay** (Morse `S-O-S` optical/audio beacon + current glucose + rescue instructions + `/spiffs/ice.cfg` emergency contact).
-  - **Web Bluetooth & USB Companion (`tools/artemis_companion.html`, `tools/flipper_bridge_sync.py`)**: Browser dashboard over Web Bluetooth NUS or Web Serial for live telemetry, drag-and-drop Flipper `cap_*.json` sensor bridging (`LL2` + `LL2_BLE`), ICE contact editing, and full watch configuration.
+  - **Hold `SELECT` (`>= 3.0s`)**: Toggle **Local SOS Beacon + ICE Overlay** (Morse `S-O-S` optical/audio beacon + current glucose + rescue instructions + `/spiffs/ice.cfg` emergency contact). This is a local light/sound beacon and contact display; it does not guarantee an emergency call or message is delivered.
+  - **Web Bluetooth & USB Companion (`esp32/circuitmess-artemis/tools/artemis_companion.html`)**: Browser dashboard over Web Bluetooth NUS or Web Serial for live telemetry, drag-and-drop Flipper `cap_*.json` sensor bridging (`LL2` + `LL2_BLE`), ICE contact editing, and full watch configuration.
 - **Flight-Deck LEDs (`GPIO 17, 18, 43, 44, 45, 46`) and Piezo Alarms (`GPIO 47` / `GPIO 11`)**:
   - **Normal update**: 1 subtle 18 ms blip on the flight-deck LEDs when a new value arrives.
   - **Warning (`<= 4.2` or `>= 13.0` mmol/L default)**: 3 seconds of 4 Hz flashing across all 6 flight-deck lights.
@@ -109,7 +113,7 @@ Turns the CircuitMess Artemis 2 watch (`ESP32-S3-MINI-1`, 128x128 ST7735S) into 
    - 3-window OLS + midpoint history smoother (`0x71f50..0x7308c`).
    - 4-horizon physiological-lag rate projections (`0x7d8b2`, `0x75950..0x79550`) over trend lags `{0, 2, 4, 6, 7, 12, 15}` and history lags `{0, 15, 30}` (the exact 10 samples carried in every 46-byte Libre 2 BLE packet).
    - Bi-exponential sensor-age drift (`0x81fc0`) and power-6 rational display curve + `-4.0` offset (`0x765ec, 0x7717a`).
-   - Verified **68 / 68 (100.00%) exact** on cold current, **68 / 68 (100.00%) exact** on warm current, and **2,108 / 2,108 (100.00%) exact** on 32-slot history series against the native Oracle with zero empirical fitting. A cold single-tap NFC scan does not carry prior 1-minute BLE warm state (`0x80d2c`), which can differ by `0.1–0.2 mmol/L` during fast glucose swings.
+   - Exact agreement on the tested reference captures: **68 / 68** on cold current, **68 / 68** on warm current, and **2,108 / 2,108** on 32-slot history series against the native Oracle with zero empirical fitting. These are computational comparisons on that dataset, not a general accuracy guarantee. A cold single-tap NFC scan does not carry prior 1-minute BLE warm state (`0x80d2c`), which can differ by `0.1–0.2 mmol/L` during fast glucose swings.
 3. **Not medical advice or a certified medical device.** Built for learning, verification, and having hardware you own and control. Do not use it on its own to dose insulin.
 4. **Keep your SD captures private.** The JSON files saved in `/ext/apps_data/libre_research/` contain your sensor's UID, derived serial, and raw FRAM bytes. Do not upload your `cap_*.json` files to public GitHub issues.
 

@@ -7,5 +7,4 @@ gcc -std=c11 -Wall -Wextra -Werror -pedantic -g -fsanitize=address,undefined \
     src/lifecycle.c -lm -o tests/test_bridge_runner
 ./tests/test_bridge_runner
 rm -f tests/test_bridge_runner
-python3 tools/send_capture.py --synthetic --dry-run > /dev/null
-echo "PASS tools/send_capture.py synthetic dry-run"
+python3 tests/test_companion_firmware.py

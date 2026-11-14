@@ -11,11 +11,23 @@ Reads hardware revision from `EFUSE_BLK3` at boot (`Rev 0/1` vs `Rev 2/3`):
 - **UP / DOWN:** Cycle 6 slides (`1/6 Cyberpunk Home HUD`, `2/6 Phone Notifications`, `3/6 Glucose History Graph & TIR`, `4/6 Bluetooth Management`, `5/6 Hardware Diagnostics`, `6/6 Settings Menu` with 24 configurable rows).
 - **Short Press `ALT/BACK`:** Jump between `Slide 1 (Home)` and `Slide 6 (Settings)`.
 - **Long Press `ALT/BACK` (`>= 1.5s`):** Toggle **Flashlight Mode** (6 perimeter LEDs + 100% white screen floodlight).
-- **Long Press `SELECT` (`>= 3.0s`):** Toggle **Medical SOS Beacon + ICE Overlay** (Morse `S-O-S` optical/audio beacon + current glucose + rescue instructions + `/spiffs/ice.cfg` emergency contact).
+- **Long Press `SELECT` (`>= 3.0s`):** Toggle **Local SOS Beacon + ICE Overlay** (Morse `S-O-S` optical/audio beacon + current glucose + rescue instructions + `/spiffs/ice.cfg` emergency contact).
 - **Native Runtime Calibration (`0x68a74..0x86908`) & Multi-Horizon BLE Estimator (`lc_vendor_calibrate_ble_packet`):**
   - Evaluates both 344-byte NFC FRAM scans (`lc_vendor_current_trend`, `lc_vendor_extract_fram_series`) and 46-byte 1-minute Libre 2 BLE packets (`lc_vendor_calibrate_ble_packet` across all 7 trend lags `{0, 2, 4, 6, 7, 12, 15}` and 3 history lags `{0, 15, 30}`) using the 100%-verified native runtime factory coefficients (`0x8b26f`), windowed temperature smoothing (`0x85534`), 5-point trend ADC average (`0x86908`), 3-window OLS + midpoint history smoother (`0x71f50..0x7308c`), 4-horizon rate projections (`0x7d8b2`), sensor-age drift (`0x81fc0`), and low-glucose rational curve (`0x765ec, 0x7717a`).
 - **Dual-Mode Bluetooth (`DIRECT` Libre 2 `0xFDE3`, `JUGGLUCO` / Gadgetbridge NUS GATT Server, or `OFF`):**
-  - Supports direct sensor BLE streaming (`0xFDE3` / `0xF001` / `0xF002`), Gadgetbridge/Juggluco phone notifications + weather/CGM broadcast + incoming call reject + time sync (`setTime`), Web Bluetooth browser control deck (`tools/artemis_companion.html`), and Flipper USB bridge scripts (`tools/flipper_bridge_sync.py`, `tools/upload_flipper_to_watch.py`).
+  - Supports direct sensor BLE streaming (`0xFDE3` / `0xF001` / `0xF002`), Gadgetbridge/Juggluco phone notifications + weather/CGM broadcast + incoming call reject + time sync (`setTime`), Web Bluetooth browser control deck (`tools/artemis_companion.html`), and Flipper capture import through the browser dashboard.
 - **Hardware Peripherals:**
-  - `PCF8563` / `BM8563` I2C RTC (`0x51`), calibrated battery fuel gauge (`GPIO 4` 2.5V reference + `GPIO 5` divider + `GPIO 42` USB 5V + `GPIO 7` charge status), LEDC PWM RGB status LED (`GPIO 14/12/13`), 6 perimeter Flight-Deck LEDs (`GPIO 17, 18, 43, 44, 45, 46`), piezo alarm (`GPIO 47/11`), flashlight mode, medical SOS beacon, Night DND, Hourly Chime, and Power Saver.
+  - `PCF8563` / `BM8563` I2C RTC (`0x51`), calibrated battery fuel gauge (`GPIO 4` 2.5V reference + `GPIO 5` divider + `GPIO 42` USB 5V + `GPIO 7` charge status), LEDC PWM RGB status LED (`GPIO 14/12/13`), 6 perimeter Flight-Deck LEDs (`GPIO 17, 18, 43, 44, 45, 46`), piezo alarm (`GPIO 47/11`), flashlight mode, local SOS light/sound beacon, Night DND, Hourly Chime, and Power Saver.
 - **Screen Wake:** Wakes on button press, wrist raise (`LSM6DS3TR-C` @ `0x6A`, 5s glance limit & sleeps immediately when wrist lowered for 250 ms), incoming notification/call, or urgent glucose alarm.
+
+### Experimental operation and saved readings
+
+This is working experimental software, not a certified medical device. Do not rely on it alone for treatment decisions or emergency alerts. After reboot, `SAVED?` means the displayed reading came from storage and its current age is unknown. Wait for a new reading before treating it as live. The SOS beacon provides local light/sound and an emergency contact display; it does not guarantee anyone is contacted. Phone clock alarms are displayed as received information, not scheduled on the watch.
+
+Import the capture before its matching BLE credentials. The browser dashboard performs that order and waits for acknowledgements. Switching to Direct BLE disconnects the browser Bluetooth connection; use USB for continued dashboard access.
+
+### Companion regression checks
+
+Run `sh tests/run.sh`, `python3 tests/test_companion_firmware.py` (requires g++), and `node tests/test_companion.js` from this directory. The latter checks transport errors, acknowledgement timeouts, fragmented replies, and USB brightness parsing. Hardware validation is still required for BLE notifications and mode switching.
+
+The Artemis build pins PlatformIO `espressif32` to `6.12.0` for its Arduino 2.x Bluedroid APIs. Newer major versions change the Bluetooth interfaces and require a separate migration. Build from source to use these fixes; the checked-in prebuilt firmware is unchanged.
