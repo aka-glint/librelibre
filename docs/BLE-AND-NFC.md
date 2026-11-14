@@ -54,8 +54,7 @@ The sensor replies with its 6-byte Bluetooth MAC (`ble_paired_mac`), which the F
 ### Step 2: Send the capture and bond to the ESP32
 
 You can pass the capture and BLE bond to the ESP32 in three ways:
-- **Web Bluetooth / Web Serial Companion Dashboard (`esp32/circuitmess-artemis/tools/artemis_companion.html`)**: Open the HTML dashboard in Chrome/Edge, connect to the Artemis Watch over Web Bluetooth (`Bangle.js Artemis` NUS) or Web Serial (`115200`), and drag-and-drop your `cap_<UID>_<tick>.json` file into the **Libre 2 Sensor Bridge** card. It computes the 344-byte FRAM CRC16 (`lcIntegrityCrc`) and pushes both `LL2|` and `LL2_BLE|` to the watch automatically.
-- **Automated Python USB Bridge (`esp32/circuitmess-artemis/tools/flipper_bridge_sync.py` & `upload_flipper_to_watch.py`)**: Automatically detects the attached Flipper Zero, pulls the newest `cap_*.json` from `/ext/apps_data/libre_research/`, computes the CRC16, and pushes `LL2_BLE|` and `LL2|` to the Artemis Watch over USB.
+- **Web Bluetooth / Web Serial Companion Dashboard (`esp32/circuitmess-artemis/tools/artemis_companion.html`)**: Open the HTML dashboard in Chrome/Edge, connect to the Artemis Watch over Web Bluetooth (`Bangle.js Artemis` NUS) or Web Serial (`115200`), and drag-and-drop your `cap_<UID>_<tick>.json` file into the **Libre 2 Sensor Bridge** card. It computes the 344-byte FRAM CRC16 (`lcIntegrityCrc`) and sends `LL2|` first, then matching `LL2_BLE|` credentials, waiting for acknowledgements before requesting Direct BLE mode. Setup acknowledgement does not confirm a live sensor connection.
 - **Direct GPIO UART (`115200 8N1` on Flipper Pin 13 `TX` / Pin 14 `RX`) or manual USB Serial (`115200`)**:
 
 1. **Full FRAM frame (`LL2|`)**: Seeds the sensor's factory calibration (`i1..i6`), current reading, and 48-point (`8h`) history graph into flash (`/spiffs/last_frame.txt` and `/spiffs/scans.csv`):
@@ -77,7 +76,9 @@ NOTE: On ESP32-S3 boards using the built-in USB-Serial/JTAG controller (`circuit
 
 If you want your ESP32 board to scan the sensor directly without a Flipper Zero, all three ESP32 projects (`esp32/circuitmess-artemis`, `esp32/waveshare-s3-lcd2`, `esp32/heltec-v3`) already include the complete ISO15693 master state machine in `src/nfc_io.c` and `src/nfc_io.h`.
 
-### Supported NFC transceiver chips
+### Compatible NFC transceiver chips requiring driver integration
+
+The protocol state machine is included, but chip-specific SPI/I2C drivers are not supplied. Implement and test the transceive callback for your hardware before using this route.
 
 The Libre 2 tag is an **ISO/IEC 15693 (NFC-V, 13.56 MHz)** tag with Texas Instruments manufacturer code `0x07` (`UID` MSB `E0 07 ...`).
 

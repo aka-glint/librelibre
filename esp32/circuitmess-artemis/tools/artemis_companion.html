@@ -214,6 +214,7 @@
   </style>
 </head>
 <body>
+  <p style="margin:1rem;color:#ffcc66">Working experimental software for standard European Libre 2 sensors. Not a certified medical device. Readings and alerts may be delayed, unavailable, or incorrect; do not rely on this alone for treatment decisions or emergency alerts. SOS provides a local light/sound beacon and contact display; it does not guarantee anyone is contacted.</p>
 
   <!-- Top Bar -->
   <div class="header">
@@ -407,7 +408,7 @@
     <div class="card-title">Hardware Controls</div>
     <div class="grid-2" style="margin-bottom:8px;">
       <button class="btn-amber" onclick="toggleFlashlight()">Toggle Flashlight</button>
-      <button class="btn-danger" onclick="toggleSos()">Medical SOS Pulse</button>
+      <button class="btn-danger" onclick="toggleSos()">Local SOS Pulse</button>
     </div>
     <div class="grid-3">
       <button onclick="sendCommand('WAKE_NOW\n')">Wake Screen</button>
@@ -647,13 +648,17 @@
 
     function parseWatchLine(line) {
       log(`RX: ${line}`, 'rx');
+      for (const pending of [...pendingReplies]) {
+        if (line.startsWith('ERR|') || line.startsWith('RESCAN|')) pending.finish(new Error(line));
+        else if (line.startsWith(pending.prefix)) pending.finish(null, line);
+      }
 
       if (line.startsWith('STATUS|')) {
         const parts = line.split('|');
         for (let i = 1; i < parts.length; i++) {
           const [k, v] = parts[i].split('=');
           if (k === 'bat') document.getElementById('telBat').textContent = v + '%';
-          if (k === 'bl') {
+          if (k === 'bl' || k === 'bl_pct') {
             document.getElementById('telBL').textContent = v + '%';
             highlightBright(parseInt(v, 10));
           }
@@ -704,10 +709,37 @@
       }
     }
 
-    async function sendCommand(cmd) {
+    const pendingReplies = new Set();
+    let sendQueue = Promise.resolve();
+    function sendCommand(cmd, requireSuccess = false) {
+      const operation = sendQueue.then(() => writeCommand(cmd));
+      sendQueue = operation.catch(() => {});
+      return requireSuccess ? operation : operation.catch(err => log(err.message, 'err'));
+    }
+    async function sendAcknowledged(cmd, prefix) {
+      let pending;
+      const reply = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => pending.finish(new Error('Watch acknowledgement timed out')), 10000);
+        pending = {prefix, finish(error, line) {
+          clearTimeout(timer);
+          pendingReplies.delete(pending);
+          error ? reject(error) : resolve(line);
+        }};
+        pendingReplies.add(pending);
+      });
+      // Observe rejection immediately, including while a long serial write is pending.
+      reply.catch(() => {});
+      try {
+        await sendCommand(cmd, true);
+        return await reply;
+      } catch (error) {
+        pending.finish(error);
+        throw error;
+      }
+    }
+    async function writeCommand(cmd) {
       if (!isConnected) {
-        log('Error: Watch not connected.', 'err');
-        return;
+        throw new Error('Watch not connected.');
       }
       try {
         log(`TX: ${cmd.trim()}`, 'tx');
@@ -736,7 +768,7 @@
           }
         }
       } catch (err) {
-        log(`Send error: ${err.message}`, 'err');
+        throw new Error(`Send error: ${err.message}`);
       }
     }
 
@@ -828,7 +860,9 @@
       reader.readAsText(file);
     }
 
+    let sensorSetupBusy = false;
     async function pushSensorToWatch() {
+      if (sensorSetupBusy) return;
       if (!parsedSensorData) return;
       if (!isConnected) {
         alert('Please connect to the watch over BLE or USB first.');
@@ -845,19 +879,19 @@
       const bleCmd = `LL2_BLE|${uid}|${patch}|${mac}|${code}|1\n`;
       const ll2Cmd = `LL2|${uid}|${patch}|${fram}|${crc}\n`;
 
-      log('Arming Direct BLE credentials on watch...', 'info');
-      await sendCommand(bleCmd);
-      await new Promise(r => setTimeout(r, 400));
-
-      log('Streaming full 8-hour FRAM historical curve to watch...', 'info');
-      await sendCommand(ll2Cmd);
-      await new Promise(r => setTimeout(r, 600));
-
-      log('Switching watch to Direct BLE mode...', 'info');
-      await sendCommand('BT_MODE|0\n');
-      setTimeout(queryStatus, 500);
-
-      alert(`Success! Sensor ${parsedSensorData.serial_derived || ''} is armed on the watch with 8h historical curve seeded.`);
+      sensorSetupBusy = true;
+      try {
+        log('Loading and checking the sensor capture...', 'info');
+        await sendAcknowledged(ll2Cmd, 'OK|src=');
+        await sendAcknowledged(bleCmd, 'OK|LL2_BLE_ARMED');
+        await sendAcknowledged('BT_MODE|0\n', 'OK|BT_MODE=0');
+        alert('Sensor capture and credentials accepted. Direct BLE mode requested; check the watch for the first live reading. Switching modes disconnects Web Bluetooth.');
+      } catch (error) {
+        log(error.message, 'err');
+        alert('Setup was not confirmed: ' + error.message + '. Check the connection and retry.');
+      } finally {
+        sensorSetupBusy = false;
+      }
     }
 
     // ─── BLUETOOTH MODE ──────────────────────────────────────
